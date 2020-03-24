@@ -1,4 +1,4 @@
-/* auto-generated on Mon Mar  2 15:35:47 PST 2020. Do not edit! */
+/* auto-generated on Fri Mar 20 11:47:31 PDT 2020. Do not edit! */
 /* begin file include/simdjson.h */
 #ifndef SIMDJSON_H
 #define SIMDJSON_H
@@ -32,68 +32,38 @@
 // do not change by hand
 #ifndef SIMDJSON_SIMDJSON_VERSION_H
 #define SIMDJSON_SIMDJSON_VERSION_H
+
+/** The version of simdjson being used (major.minor.revision) */
 #define SIMDJSON_VERSION 0.2.1
+
 namespace simdjson {
 enum {
+  /**
+   * The major version (MAJOR.minor.revision) of simdjson being used.
+   */
   SIMDJSON_VERSION_MAJOR = 0,
+  /**
+   * The minor version (major.MINOR.revision) of simdjson being used.
+   */
   SIMDJSON_VERSION_MINOR = 2,
+  /**
+   * The revision (major.minor.REVISION) of simdjson being used.
+   */
   SIMDJSON_VERSION_REVISION = 1
 };
-}
+} // namespace simdjson
+
 #endif // SIMDJSON_SIMDJSON_VERSION_H
 /* end file include/simdjson/simdjson_version.h */
 /* begin file include/simdjson/error.h */
 #ifndef SIMDJSON_ERROR_H
 #define SIMDJSON_ERROR_H
 
-#include <string>
+/* begin file include/simdjson/common_defs.h */
+#ifndef SIMDJSON_COMMON_DEFS_H
+#define SIMDJSON_COMMON_DEFS_H
 
-namespace simdjson {
-
-enum error_code {
-  SUCCESS = 0,
-  SUCCESS_AND_HAS_MORE, //No errors and buffer still has more data
-  CAPACITY,    // This parser can't support a document that big
-  MEMALLOC,    // Error allocating memory, most likely out of memory
-  TAPE_ERROR,  // Something went wrong while writing to the tape (stage 2), this
-               // is a generic error
-  DEPTH_ERROR, // Your document exceeds the user-specified depth limitation
-  STRING_ERROR,    // Problem while parsing a string
-  T_ATOM_ERROR,    // Problem while parsing an atom starting with the letter 't'
-  F_ATOM_ERROR,    // Problem while parsing an atom starting with the letter 'f'
-  N_ATOM_ERROR,    // Problem while parsing an atom starting with the letter 'n'
-  NUMBER_ERROR,    // Problem while parsing a number
-  UTF8_ERROR,      // the input is not valid UTF-8
-  UNINITIALIZED,     // unknown error, or uninitialized document
-  EMPTY,           // no structural element found
-  UNESCAPED_CHARS, // found unescaped characters in a string.
-  UNCLOSED_STRING, // missing quote at the end
-  UNSUPPORTED_ARCHITECTURE, // unsupported architecture
-  INCORRECT_TYPE, // JSON element has a different type than user expected
-  NUMBER_OUT_OF_RANGE, // JSON number does not fit in 64 bits
-  NO_SUCH_FIELD, // JSON field not found in object
-  UNEXPECTED_ERROR // indicative of a bug in simdjson
-};
-
-const std::string &error_message(error_code error) noexcept;
-
-struct invalid_json : public std::exception {
-  invalid_json(error_code _error) : error{_error} { }
-  const char *what() const noexcept { return error_message(error).c_str(); }
-  error_code error;
-};
-
-// TODO these are deprecated, remove
-using ErrorValues = error_code;
-inline const std::string &error_message(int error) noexcept { return error_message(error_code(error)); }
-
-} // namespace simdjson
-
-#endif // SIMDJSON_ERROR_H
-/* end file include/simdjson/error.h */
-/* begin file include/simdjson/padded_string.h */
-#ifndef SIMDJSON_PADDING_STRING_H
-#define SIMDJSON_PADDING_STRING_H
+#include <cassert>
 /* begin file include/simdjson/portability.h */
 #ifndef SIMDJSON_PORTABILITY_H
 #define SIMDJSON_PORTABILITY_H
@@ -117,6 +87,28 @@ inline const std::string &error_message(int error) noexcept { return error_messa
 #undef STRINGIFY
 #define STRINGIFY_IMPLEMENTATION_(a) #a
 #define STRINGIFY(a) STRINGIFY_IMPLEMENTATION_(a)
+
+#ifndef SIMDJSON_IMPLEMENTATION_FALLBACK
+#define SIMDJSON_IMPLEMENTATION_FALLBACK 1
+#endif
+
+#if IS_ARM64
+#ifndef SIMDJSON_IMPLEMENTATION_ARM64
+#define SIMDJSON_IMPLEMENTATION_ARM64 1
+#endif
+#define SIMDJSON_IMPLEMENTATION_HASWELL 0
+#define SIMDJSON_IMPLEMENTATION_WESTMERE 0
+#endif // IS_ARM64
+
+#if IS_X86_64
+#ifndef SIMDJSON_IMPLEMENTATION_HASWELL
+#define SIMDJSON_IMPLEMENTATION_HASWELL 1
+#endif
+#ifndef SIMDJSON_IMPLEMENTATION_WESTMERE
+#define SIMDJSON_IMPLEMENTATION_WESTMERE 1
+#endif
+#define SIMDJSON_IMPLEMENTATION_ARM64 0
+#endif // IS_X86_64
 
 // we are going to use runtime dispatch
 #ifdef IS_X86_64
@@ -215,20 +207,38 @@ static inline void aligned_free_char(char *mem_block) {
 } // namespace simdjson
 #endif // SIMDJSON_PORTABILITY_H
 /* end file include/simdjson/portability.h */
-/* begin file include/simdjson/common_defs.h */
-#ifndef SIMDJSON_COMMON_DEFS_H
-#define SIMDJSON_COMMON_DEFS_H
 
-#include <cassert>
+namespace simdjson {
 
-// we support documents up to 4GB
-#define SIMDJSON_MAXSIZE_BYTES 0xFFFFFFFF
+#ifndef SIMDJSON_EXCEPTIONS
+#if __cpp_exceptions
+#define SIMDJSON_EXCEPTIONS 1
+#else
+#define SIMDJSON_EXCEPTIONS 0
+#endif
+#endif
 
-// the input buf should be readable up to buf + SIMDJSON_PADDING
-// this is a stopgap; there should be a better description of the
-// main loop and its behavior that abstracts over this
-// See https://github.com/lemire/simdjson/issues/174
-#define SIMDJSON_PADDING 32
+/** The maximum document size supported by simdjson. */
+constexpr size_t SIMDJSON_MAXSIZE_BYTES = 0xFFFFFFFF;
+
+/**
+ * The amount of padding needed in a buffer to parse JSON.
+ *
+ * the input buf should be readable up to buf + SIMDJSON_PADDING
+ * this is a stopgap; there should be a better description of the
+ * main loop and its behavior that abstracts over this
+ * See https://github.com/lemire/simdjson/issues/174
+ */
+constexpr size_t SIMDJSON_PADDING = 32;
+
+/**
+ * By default, simdjson supports this many nested objects and arrays.
+ *
+ * This is the default for document::parser::max_depth().
+ */
+constexpr size_t DEFAULT_MAX_DEPTH = 1024;
+
+} // namespace simdjson
 
 #if defined(__GNUC__)
 // Marks a block with a name so that MCA analysis can see it.
@@ -287,104 +297,294 @@ static inline void aligned_free_char(char *mem_block) {
 #endif // MSC_VER
 
 #endif // SIMDJSON_COMMON_DEFS_H
-/* end file include/simdjson/common_defs.h */
+/* end file include/simdjson/portability.h */
+#include <string>
+#include <utility>
+
+namespace simdjson {
+
+/**
+ * All possible errors returned by simdjson.
+ */
+enum error_code {
+  SUCCESS = 0,              ///< No error
+  SUCCESS_AND_HAS_MORE,     ///< No error and buffer still has more data
+  CAPACITY,                 ///< This parser can't support a document that big
+  MEMALLOC,                 ///< Error allocating memory, most likely out of memory
+  TAPE_ERROR,               ///< Something went wrong while writing to the tape (stage 2), this is a generic error
+  DEPTH_ERROR,              ///< Your document exceeds the user-specified depth limitation
+  STRING_ERROR,             ///< Problem while parsing a string
+  T_ATOM_ERROR,             ///< Problem while parsing an atom starting with the letter 't'
+  F_ATOM_ERROR,             ///< Problem while parsing an atom starting with the letter 'f'
+  N_ATOM_ERROR,             ///< Problem while parsing an atom starting with the letter 'n'
+  NUMBER_ERROR,             ///< Problem while parsing a number
+  UTF8_ERROR,               ///< the input is not valid UTF-8
+  UNINITIALIZED,            ///< unknown error, or uninitialized document
+  EMPTY,                    ///< no structural element found
+  UNESCAPED_CHARS,          ///< found unescaped characters in a string.
+  UNCLOSED_STRING,          ///< missing quote at the end
+  UNSUPPORTED_ARCHITECTURE, ///< unsupported architecture
+  INCORRECT_TYPE,           ///< JSON element has a different type than user expected
+  NUMBER_OUT_OF_RANGE,      ///< JSON number does not fit in 64 bits
+  NO_SUCH_FIELD,            ///< JSON field not found in object
+  IO_ERROR,                 ///< Error reading a file
+  UNEXPECTED_ERROR,         ///< indicative of a bug in simdjson
+  /** @private Number of error codes */
+  NUM_ERROR_CODES
+};
+
+/**
+ * Get the error message for the given error code.
+ *
+ *   auto [doc, error] = document::parse("foo");
+ *   if (error) { printf("Error: %s\n", error_message(error)); }
+ *
+ * @return The error message.
+ */
+inline const char *error_message(error_code error) noexcept;
+
+/**
+ * Write the error message to the output stream
+ */
+inline std::ostream& operator<<(std::ostream& out, error_code error) noexcept;
+
+/**
+ * Exception thrown when an exception-supporting simdjson method is called
+ */
+struct simdjson_error : public std::exception {
+  /**
+   * Create an exception from a simdjson error code.
+   * @param error The error code
+   */
+  simdjson_error(error_code error) noexcept : _error{error} { }
+  /** The error message */
+  const char *what() const noexcept { return error_message(error()); }
+  /** The error code */
+  error_code error() const noexcept { return _error; }
+private:
+  /** The error code that was used */
+  error_code _error;
+};
+
+/**
+ * The result of a simd operation that could fail.
+ *
+ * Gives the option of reading error codes, or throwing an exception by casting to the desired result.
+ */
+template<typename T>
+struct simdjson_result : public std::pair<T, error_code> {
+  /**
+   * The error.
+   */
+  error_code error() const { return this->second; }
+
+#if SIMDJSON_EXCEPTIONS
+
+  /**
+   * The value of the function.
+   *
+   * @throw simdjson_error if there was an error.
+   */
+  T get() noexcept(false) {
+    if (error()) { throw simdjson_error(error()); }
+    return this->first;
+  };
+
+  /**
+   * Cast to the value (will throw on error).
+   *
+   * @throw simdjson_error if there was an error.
+   */
+  operator T() noexcept(false) { return get(); }
+
+#endif // SIMDJSON_EXCEPTIONS
+
+  /**
+   * Create a new error result.
+   */
+  simdjson_result(error_code _error) noexcept : std::pair<T, error_code>({}, _error) {}
+
+  /**
+   * Create a new successful result.
+   */
+  simdjson_result(T _value) noexcept : std::pair<T, error_code>(_value, SUCCESS) {}
+
+  /**
+   * Create a new result with both things (use if you don't want to branch when creating the result).
+   */
+  simdjson_result(T value, error_code error) noexcept : std::pair<T, error_code>(value, error) {}
+};
+
+/**
+ * The result of a simd operation that could fail.
+ *
+ * This class is for values that must be *moved*, like padded_string and document.
+ *
+ * Gives the option of reading error codes, or throwing an exception by casting to the desired result.
+ */
+template<typename T>
+struct simdjson_move_result : std::pair<T, error_code> {
+  /**
+   * Move the value and the error to the provided variables.
+   */
+  void tie(T& t, error_code & e) {
+    // on the clang compiler that comes with current macOS (Apple clang version 11.0.0),
+    // std::tie(this->json, error) = padded_string::load(filename);
+    // fails with "benchmark/benchmarker.h:266:33: error: no viable overloaded '='""
+    t = std::move(this->first);
+    e = std::move(this->second);
+  }
+  /**
+   * The error.
+   */
+  error_code error() const { return this->second; }
+
+#if SIMDJSON_EXCEPTIONS
+
+  /**
+   * The value of the function.
+   *
+   * @throw simdjson_error if there was an error.
+   */
+  T move() noexcept(false) {
+    if (error()) { throw simdjson_error(error()); }
+    return std::move(this->first);
+  };
+
+  /**
+   * Cast to the value (will throw on error).
+   *
+   * @throw simdjson_error if there was an error.
+   */
+  operator T() noexcept(false) { return move(); }
+
+#endif
+
+  /**
+   * Create a new error result.
+   */
+  simdjson_move_result(error_code error) noexcept : std::pair<T, error_code>(T(), error) {}
+
+  /**
+   * Create a new successful result.
+   */
+  simdjson_move_result(T value) noexcept : std::pair<T, error_code>(std::move(value), SUCCESS) {}
+
+  /**
+   * Create a new result with both things (use if you don't want to branch when creating the result).
+   */
+  simdjson_move_result(T value, error_code error) noexcept : std::pair<T, error_code>(std::move(value), error) {}
+};
+
+/**
+ * @deprecated This is an alias and will be removed, use error_code instead
+ */
+using ErrorValues = error_code;
+
+/**
+ * @deprecated Error codes should be stored and returned as `error_code`, use `error_message()` instead.
+ */
+inline const std::string &error_message(int error) noexcept;
+
+} // namespace simdjson
+
+#endif // SIMDJSON_ERROR_H
+/* end file include/simdjson/portability.h */
+/* begin file include/simdjson/padded_string.h */
+#ifndef SIMDJSON_PADDED_STRING_H
+#define SIMDJSON_PADDED_STRING_H
 
 #include <cstring>
 #include <memory>
 #include <string>
 
-
 namespace simdjson {
-// low-level function to allocate memory with padding so we can read past the
-// "length" bytes safely. if you must provide a pointer to some data, create it
-// with this function: length is the max. size in bytes of the string caller is
-// responsible to free the memory (free(...))
-inline char *allocate_padded_buffer(size_t length) noexcept {
-  // we could do a simple malloc
-  // return (char *) malloc(length + SIMDJSON_PADDING);
-  // However, we might as well align to cache lines...
-  size_t totalpaddedlength = length + SIMDJSON_PADDING;
-  char *padded_buffer = aligned_malloc_char(64, totalpaddedlength);
-#ifndef NDEBUG
-  if (padded_buffer == nullptr) {
-    return nullptr;
-  }
-#endif // NDEBUG
-  memset(padded_buffer + length, 0, totalpaddedlength - length);
-  return padded_buffer;
-} // allocate_padded_buffer
 
-// Simple string with padded allocation.
-// We deliberately forbid copies, users should rely on swap or move
-// constructors.
+/**
+ * String with extra allocation for ease of use with document::parser::parse()
+ *
+ * This is a move-only class, it cannot be copied.
+ */
 struct padded_string final {
 
-  explicit padded_string() noexcept : viable_size(0), data_ptr(nullptr) {}
+  /**
+   * Create a new, empty padded string.
+   */
+  explicit inline padded_string() noexcept;
+  /**
+   * Create a new padded string buffer.
+   *
+   * @param length the size of the string.
+   */
+  explicit inline padded_string(size_t length) noexcept;
+  /**
+   * Create a new padded string by copying the given input.
+   *
+   * @param data the buffer to copy
+   * @param length the number of bytes to copy
+   */
+  explicit inline padded_string(const char *data, size_t length) noexcept;
+  /**
+   * Create a new padded string by copying the given input.
+   *
+   * @param str_ the string to copy
+   */
+  inline padded_string(const std::string & str_ ) noexcept;
+  /**
+   * Create a new padded string by copying the given input.
+   *
+   * @param str_ the string to copy
+   */
+  inline padded_string(std::string_view sv_) noexcept;
+  /**
+   * Move one padded string into another.
+   *
+   * The original padded string will be reduced to zero capacity.
+   *
+   * @param o the string to move.
+   */
+  inline padded_string(padded_string &&o) noexcept;
+  /**
+   * Move one padded string into another.
+   *
+   * The original padded string will be reduced to zero capacity.
+   *
+   * @param o the string to move.
+   */
+  inline padded_string &operator=(padded_string &&o) noexcept;
+  inline void swap(padded_string &o) noexcept;
+  ~padded_string() noexcept;
 
-  explicit padded_string(size_t length) noexcept
-      : viable_size(length), data_ptr(allocate_padded_buffer(length)) {
-    if (data_ptr != nullptr)
-      data_ptr[length] = '\0'; // easier when you need a c_str
-  }
+  /**
+   * The length of the string.
+   *
+   * Does not include padding.
+   */
+  size_t size() const noexcept;
 
-  explicit padded_string(const char *data, size_t length) noexcept
-      : viable_size(length), data_ptr(allocate_padded_buffer(length)) {
-    if ((data != nullptr) and (data_ptr != nullptr)) {
-      memcpy(data_ptr, data, length);
-      data_ptr[length] = '\0'; // easier when you need a c_str
-    }
-  }
+  /**
+   * The length of the string.
+   *
+   * Does not include padding.
+   */
+  size_t length() const noexcept;
 
-  // note: do not pass std::string arguments by value
-  padded_string(const std::string & str_ ) noexcept
-      : viable_size(str_.size()), data_ptr(allocate_padded_buffer(str_.size())) {
-    if (data_ptr != nullptr) {
-      memcpy(data_ptr, str_.data(), str_.size());
-      data_ptr[str_.size()] = '\0'; // easier when you need a c_str
-    }
-  }
+  /**
+   * The string data.
+   **/
+  const char *data() const noexcept;
 
-  // note: do pass std::string_view arguments by value
-  padded_string(std::string_view sv_) noexcept
-      : viable_size(sv_.size()), data_ptr(allocate_padded_buffer(sv_.size())) {
-    if (data_ptr != nullptr) {
-      memcpy(data_ptr, sv_.data(), sv_.size());
-      data_ptr[sv_.size()] = '\0'; // easier when you need a c_str
-    }
-  }
+  /**
+   * The string data.
+   **/
+  char *data() noexcept;
 
-  padded_string(padded_string &&o) noexcept
-      : viable_size(o.viable_size), data_ptr(o.data_ptr) {
-    o.data_ptr = nullptr; // we take ownership
-  }
-
-  padded_string &operator=(padded_string &&o) {
-    aligned_free_char(data_ptr);
-    data_ptr = o.data_ptr;
-    viable_size = o.viable_size;
-    o.data_ptr = nullptr; // we take ownership
-    o.viable_size = 0;
-    return *this;
-  }
-
-  void swap(padded_string &o) {
-    size_t tmp_viable_size = viable_size;
-    char *tmp_data_ptr = data_ptr;
-    viable_size = o.viable_size;
-    data_ptr = o.data_ptr;
-    o.data_ptr = tmp_data_ptr;
-    o.viable_size = tmp_viable_size;
-  }
-
-  ~padded_string() {
-      aligned_free_char(data_ptr);
-  }
-
-  size_t size() const  { return viable_size; }
-
-  size_t length() const  { return viable_size; }
-
-  char *data() const  { return data_ptr; }
+  /**
+   * Load this padded string from a file.
+   *
+   * @param path the path to the file.
+   **/
+  inline static simdjson_move_result<padded_string> load(const std::string &path) noexcept;
 
 private:
   padded_string &operator=(const padded_string &o) = delete;
@@ -397,8 +597,18 @@ private:
 
 } // namespace simdjson
 
-#endif
-/* end file include/simdjson/common_defs.h */
+namespace simdjson::internal {
+
+// low-level function to allocate memory with padding so we can read past the
+// "length" bytes safely. if you must provide a pointer to some data, create it
+// with this function: length is the max. size in bytes of the string caller is
+// responsible to free the memory (free(...))
+inline char *allocate_padded_buffer(size_t length) noexcept;
+
+} // namespace simdjson::internal;
+
+#endif // SIMDJSON_PADDED_STRING_H
+/* end file include/simdjson/padded_string.h */
 /* begin file include/simdjson/implementation.h */
 #ifndef SIMDJSON_IMPLEMENTATION_H
 #define SIMDJSON_IMPLEMENTATION_H
@@ -415,6 +625,7 @@ private:
 #include <memory>
 #include <string>
 #include <limits>
+#include <sstream>
 /* begin file include/simdjson/simdjson.h */
 /**
  * @file
@@ -427,8 +638,11 @@ private:
 #endif // SIMDJSON_H
 /* end file include/simdjson/simdjson.h */
 
-#define JSON_VALUE_MASK 0x00FFFFFFFFFFFFFF
-#define DEFAULT_MAX_DEPTH 1024 // a JSON document with a depth exceeding 1024 is probably de facto invalid
+namespace simdjson::internal {
+constexpr const uint64_t JSON_VALUE_MASK = 0x00FFFFFFFFFFFFFF;
+enum class tape_type;
+class tape_ref;
+} // namespace simdjson::internal
 
 namespace simdjson {
 
@@ -464,17 +678,23 @@ public:
   document &operator=(document &&other) noexcept = default;
   document &operator=(const document &) = delete; // Disallow copying
 
+  /** The default batch size for parse_many and load_many */
+  static constexpr size_t DEFAULT_BATCH_SIZE = 1000000;
+
   // Nested classes
   class element;
   class array;
   class object;
   class key_value_pair;
   class parser;
+  class stream;
 
-  template<typename T=element>
-  class element_result;
+  class doc_move_result;
   class doc_result;
-  class doc_ref_result;
+  class element_result;
+  class array_result;
+  class object_result;
+  class stream_result;
 
   // Nested classes. See definitions later in file.
   using iterator = document_iterator<DEFAULT_MAX_DEPTH>;
@@ -486,29 +706,32 @@ public:
   /**
    * Get the root element of this document as a JSON array.
    */
-  element_result<array> as_array() const noexcept;
+  array_result as_array() const noexcept;
   /**
    * Get the root element of this document as a JSON object.
    */
-  element_result<object> as_object() const noexcept;
+  object_result as_object() const noexcept;
   /**
    * Get the root element of this document.
    */
   operator element() const noexcept;
+
+#if SIMDJSON_EXCEPTIONS
   /**
    * Read the root element of this document as a JSON array.
    *
    * @return The JSON array.
-   * @exception invalid_json(UNEXPECTED_TYPE) if the JSON element is not an array
+   * @exception simdjson_error(UNEXPECTED_TYPE) if the JSON element is not an array
    */
   operator array() const noexcept(false);
   /**
    * Read this element as a JSON object (key/value pairs).
    *
    * @return The JSON object.
-   * @exception invalid_json(UNEXPECTED_TYPE) if the JSON element is not an object
+   * @exception simdjson_error(UNEXPECTED_TYPE) if the JSON element is not an object
    */
   operator object() const noexcept(false);
+#endif // SIMDJSON_EXCEPTIONS
 
   /**
    * Get the value associated with the given key.
@@ -522,7 +745,7 @@ public:
    *         - NO_SUCH_FIELD if the field does not exist in the object
    *         - UNEXPECTED_TYPE if the document is not an object
    */
-  element_result<element> operator[](const std::string_view &s) const noexcept;
+  element_result operator[](const std::string_view &s) const noexcept;
   /**
    * Get the value associated with the given key.
    *
@@ -535,16 +758,8 @@ public:
    *         - NO_SUCH_FIELD if the field does not exist in the object
    *         - UNEXPECTED_TYPE if the document is not an object
    */
-  element_result<element> operator[](const char *s) const noexcept;
+  element_result operator[](const char *s) const noexcept;
 
-  /**
-   * Print this JSON to a std::ostream.
-   *
-   * @param os the stream to output to.
-   * @param max_depth the maximum JSON depth to output.
-   * @return false if the tape is likely wrong (e.g., you did not parse a valid JSON).
-   */
-  bool print_json(std::ostream &os, size_t max_depth=DEFAULT_MAX_DEPTH) const noexcept;
   /**
    * Dump the raw tape for debugging.
    *
@@ -552,6 +767,25 @@ public:
    * @return false if the tape is likely wrong (e.g., you did not parse a valid JSON).
    */
   bool dump_raw_tape(std::ostream &os) const noexcept;
+
+  /**
+   * Load a JSON document from a file and return it.
+   *
+   *   document doc = document::load("jsonexamples/twitter.json");
+   *
+   * ### Parser Capacity
+   *
+   * If the parser's current capacity is less than the file length, it will allocate enough capacity
+   * to handle it (up to max_capacity).
+   *
+   * @param path The path to load.
+   * @return The document, or an error:
+   *         - IO_ERROR if there was an error opening or reading the file.
+   *         - MEMALLOC if the parser does not have enough capacity and memory allocation fails.
+   *         - CAPACITY if the parser does not have enough capacity and len > max_capacity.
+   *         - other json errors if parsing fails.
+   */
+  inline static doc_move_result load(const std::string& path) noexcept;
 
   /**
    * Parse a JSON document and return a reference to it.
@@ -567,7 +801,7 @@ public:
    * @param realloc_if_needed Whether to reallocate and enlarge the JSON buffer to add padding.
    * @return the document, or an error if the JSON is invalid.
    */
-  static doc_result parse(const uint8_t *buf, size_t len, bool realloc_if_needed = true) noexcept;
+  inline static doc_move_result parse(const uint8_t *buf, size_t len, bool realloc_if_needed = true) noexcept;
 
   /**
    * Parse a JSON document.
@@ -583,7 +817,7 @@ public:
    * @param realloc_if_needed Whether to reallocate and enlarge the JSON buffer to add padding.
    * @return the document, or an error if the JSON is invalid.
    */
-  static doc_result parse(const char *buf, size_t len, bool realloc_if_needed = true) noexcept;
+  really_inline static doc_move_result parse(const char *buf, size_t len, bool realloc_if_needed = true) noexcept;
 
   /**
    * Parse a JSON document.
@@ -596,7 +830,7 @@ public:
    *          a new string will be created with the extra padding.
    * @return the document, or an error if the JSON is invalid.
    */
-  static doc_result parse(const std::string &s) noexcept;
+  really_inline static doc_move_result parse(const std::string &s) noexcept;
 
   /**
    * Parse a JSON document.
@@ -604,26 +838,29 @@ public:
    * @param s The JSON to parse.
    * @return the document, or an error if the JSON is invalid.
    */
-  static doc_result parse(const padded_string &s) noexcept;
+  really_inline static doc_move_result parse(const padded_string &s) noexcept;
 
   // We do not want to allow implicit conversion from C string to std::string.
-  doc_ref_result parse(const char *buf, bool realloc_if_needed = true) noexcept = delete;
+  doc_result parse(const char *buf, bool realloc_if_needed = true) noexcept = delete;
 
   std::unique_ptr<uint64_t[]> tape;
   std::unique_ptr<uint8_t[]> string_buf;// should be at least byte_capacity
 
 private:
-  class tape_ref;
-  enum class tape_type;
-  bool set_capacity(size_t len);
+  inline error_code set_capacity(size_t len) noexcept;
+  template<typename T>
+  friend class minify;
 }; // class document
+
+template<typename T>
+class minify;
 
 /**
  * A parsed, *owned* document, or an error if the parse failed.
  *
  *     document &doc = document::parse(json);
  *
- * Returns an owned `document`. When the doc_result (or the document retrieved from it) goes out of
+ * Returns an owned `document`. When the doc_move_result (or the document retrieved from it) goes out of
  * scope, the document's memory is deallocated.
  *
  * ## Error Codes vs. Exceptions
@@ -640,38 +877,58 @@ private:
  *     document doc = document::parse(json);
  *
  */
-class document::doc_result {
+class document::doc_move_result : public simdjson_move_result<document> {
 public:
-  /**
-   * The parsed document. This is *invalid* if there is an error.
-   */
-  document doc;
-  /**
-   * The error code, or SUCCESS (0) if there is no error.
-   */
-  error_code error;
 
   /**
-   * Return the document, or throw an exception if it is invalid.
+   * Read this document as a JSON objec.
    *
-   * @return the document.
-   * @exception invalid_json if the document is invalid or there was an error parsing it.
+   * @return The object value, or:
+   *         - UNEXPECTED_TYPE if the JSON document is not an object
    */
-  operator document() noexcept(false);
+  inline object_result as_object() const noexcept;
 
   /**
-   * Get the error message for the error.
+   * Read this document as a JSON array.
+   *
+   * @return The array value, or:
+   *         - UNEXPECTED_TYPE if the JSON document is not an array
    */
-  const std::string &get_error_message() const noexcept;
+  inline array_result as_array() const noexcept;
 
-  ~doc_result() noexcept=default;
+  /**
+   * Get the value associated with the given key.
+   *
+   * The key will be matched against **unescaped** JSON:
+   *
+   *   document::parse(R"({ "a\n": 1 })")["a\n"].as_uint64_t().value == 1
+   *   document::parse(R"({ "a\n": 1 })")["a\\n"].as_uint64_t().error == NO_SUCH_FIELD
+   *
+   * @return The value associated with this field, or:
+   *         - NO_SUCH_FIELD if the field does not exist in the object
+   *         - UNEXPECTED_TYPE if the document is not an object
+   */
+  inline element_result operator[](const std::string_view &key) const noexcept;
+  /**
+   * Get the value associated with the given key.
+   *
+   * The key will be matched against **unescaped** JSON:
+   *
+   *   document::parse(R"({ "a\n": 1 })")["a\n"].as_uint64_t().value == 1
+   *   document::parse(R"({ "a\n": 1 })")["a\\n"].as_uint64_t().error == NO_SUCH_FIELD
+   *
+   * @return The value associated with this field, or:
+   *         - NO_SUCH_FIELD if the field does not exist in the object
+   *         - UNEXPECTED_TYPE if the document is not an object
+   */
+  inline element_result operator[](const char *key) const noexcept;
 
-private:
-  doc_result(document &&_doc, error_code _error) noexcept;
-  doc_result(document &&_doc) noexcept;
-  doc_result(error_code _error) noexcept;
+  ~doc_move_result() noexcept=default;
+  doc_move_result(document &&doc, error_code error) noexcept;
+  doc_move_result(document &&doc) noexcept;
+  doc_move_result(error_code error) noexcept;
   friend class document;
-}; // class document::doc_result
+}; // class document::doc_move_result
 
 /**
  * A parsed document reference, or an error if the parse failed.
@@ -704,76 +961,102 @@ private:
  *     document &doc = document::parse(json);
  *
  */
-class document::doc_ref_result {
+class document::doc_result : public simdjson_result<document&> {
 public:
   /**
-   * The parsed document. This is *invalid* if there is an error.
-   */
-  document &doc;
-  /**
-   * The error code, or SUCCESS (0) if there is no error.
-   */
-  error_code error;
-
-  /**
-   * A reference to the document, or throw an exception if it is invalid.
+   * Read this document as a JSON objec.
    *
-   * @return the document.
-   * @exception invalid_json if the document is invalid or there was an error parsing it.
+   * @return The object value, or:
+   *         - UNEXPECTED_TYPE if the JSON document is not an object
    */
-  operator document&() noexcept(false);
+  inline object_result as_object() const noexcept;
 
   /**
-   * Get the error message for the error.
+   * Read this document as a JSON array.
+   *
+   * @return The array value, or:
+   *         - UNEXPECTED_TYPE if the JSON document is not an array
    */
-  const std::string &get_error_message() const noexcept;
+  inline array_result as_array() const noexcept;
 
-  ~doc_ref_result()=default;
+  /**
+   * Get the value associated with the given key.
+   *
+   * The key will be matched against **unescaped** JSON:
+   *
+   *   document::parse(R"({ "a\n": 1 })")["a\n"].as_uint64_t().value == 1
+   *   document::parse(R"({ "a\n": 1 })")["a\\n"].as_uint64_t().error == NO_SUCH_FIELD
+   *
+   * @return The value associated with this field, or:
+   *         - NO_SUCH_FIELD if the field does not exist in the object
+   *         - UNEXPECTED_TYPE if the document is not an object
+   */
+  inline element_result operator[](const std::string_view &key) const noexcept;
 
-private:
-  doc_ref_result(document &_doc, error_code _error) noexcept;
+  /**
+   * Get the value associated with the given key.
+   *
+   * The key will be matched against **unescaped** JSON:
+   *
+   *   document::parse(R"({ "a\n": 1 })")["a\n"].as_uint64_t().value == 1
+   *   document::parse(R"({ "a\n": 1 })")["a\\n"].as_uint64_t().error == NO_SUCH_FIELD
+   *
+   * @return The value associated with this field, or:
+   *         - NO_SUCH_FIELD if the field does not exist in the object
+   *         - UNEXPECTED_TYPE if the document is not an object
+   */
+  inline element_result operator[](const char *key) const noexcept;
+
+  ~doc_result()=default;
+  doc_result(document &doc, error_code error) noexcept;
   friend class document::parser;
-}; // class document::doc_ref_result
+  friend class document::stream;
+}; // class document::doc_result
 
-/**
-  * The possible types in the tape. Internal only.
+namespace internal {
+  /**
+    * The possible types in the tape. Internal only.
+    */
+  enum class tape_type {
+    ROOT = 'r',
+    START_ARRAY = '[',
+    START_OBJECT = '{',
+    END_ARRAY = ']',
+    END_OBJECT = '}',
+    STRING = '"',
+    INT64 = 'l',
+    UINT64 = 'u',
+    DOUBLE = 'd',
+    TRUE_VALUE = 't',
+    FALSE_VALUE = 'f',
+    NULL_VALUE = 'n'
+  };
+
+  /**
+  * A reference to an element on the tape. Internal only.
   */
-enum class document::tape_type {
-  ROOT = 'r',
-  START_ARRAY = '[',
-  START_OBJECT = '{',
-  END_ARRAY = ']',
-  END_OBJECT = '}',
-  STRING = '"',
-  INT64 = 'l',
-  UINT64 = 'u',
-  DOUBLE = 'd',
-  TRUE_VALUE = 't',
-  FALSE_VALUE = 'f',
-  NULL_VALUE = 'n'
-};
+  class tape_ref {
+  protected:
+    really_inline tape_ref() noexcept;
+    really_inline tape_ref(const document *_doc, size_t _json_index) noexcept;
+    inline size_t after_element() const noexcept;
+    really_inline tape_type type() const noexcept;
+    really_inline uint64_t tape_value() const noexcept;
+    template<typename T>
+    really_inline T next_tape_value() const noexcept;
+    inline std::string_view get_string_view() const noexcept;
 
-/**
- * A reference to an element on the tape. Internal only.
- */
-class document::tape_ref {
-protected:
-  tape_ref() noexcept;
-  tape_ref(const document *_doc, size_t _json_index) noexcept;
-  size_t after_element() const noexcept;
-  tape_type type() const noexcept;
-  uint64_t tape_value() const noexcept;
-  template<typename T>
-  T next_tape_value() const noexcept;
+    /** The document this element references. */
+    const document *doc;
 
-  /** The document this element references. */
-  const document *doc;
+    /** The index of this element on `doc.tape[]` */
+    size_t json_index;
 
-  /** The index of this element on `doc.tape[]` */
-  size_t json_index;
-
-  friend class document::key_value_pair;
-};
+    friend class simdjson::document::key_value_pair;
+    template<typename T>
+    friend class simdjson::minify;
+  };
+} // namespace simdjson::internal
 
 /**
  * A JSON element.
@@ -781,22 +1064,25 @@ protected:
  * References an element in a JSON document, representing a JSON null, boolean, string, number,
  * array or object.
  */
-class document::element : protected document::tape_ref {
+class document::element : protected internal::tape_ref {
 public:
+  /** Create a new, invalid element. */
+  really_inline element() noexcept;
+
   /** Whether this element is a json `null`. */
-  bool is_null() const noexcept;
+  really_inline bool is_null() const noexcept;
   /** Whether this is a JSON `true` or `false` */
-  bool is_bool() const noexcept;
+  really_inline bool is_bool() const noexcept;
   /** Whether this is a JSON number (e.g. 1, 1.0 or 1e2) */
-  bool is_number() const noexcept;
+  really_inline bool is_number() const noexcept;
   /** Whether this is a JSON integer (e.g. 1 or -1, but *not* 1.0 or 1e2) */
-  bool is_integer() const noexcept;
+  really_inline bool is_integer() const noexcept;
   /** Whether this is a JSON string (e.g. "abc") */
-  bool is_string() const noexcept;
+  really_inline bool is_string() const noexcept;
   /** Whether this is a JSON array (e.g. []) */
-  bool is_array() const noexcept;
+  really_inline bool is_array() const noexcept;
   /** Whether this is a JSON array (e.g. []) */
-  bool is_object() const noexcept;
+  really_inline bool is_object() const noexcept;
 
   /**
    * Read this element as a boolean (json `true` or `false`).
@@ -804,7 +1090,7 @@ public:
    * @return The boolean value, or:
    *         - UNEXPECTED_TYPE error if the JSON element is not a boolean
    */
-  element_result<bool> as_bool() const noexcept;
+  inline simdjson_result<bool> as_bool() const noexcept;
 
   /**
    * Read this element as a null-terminated string.
@@ -815,7 +1101,7 @@ public:
    * @return A `string_view` into the string, or:
    *         - UNEXPECTED_TYPE error if the JSON element is not a string
    */
-  element_result<const char *> as_c_str() const noexcept;
+  inline simdjson_result<const char *> as_c_str() const noexcept;
 
   /**
    * Read this element as a C++ string_view (string with length).
@@ -826,7 +1112,7 @@ public:
    * @return A `string_view` into the string, or:
    *         - UNEXPECTED_TYPE error if the JSON element is not a string
    */
-  element_result<std::string_view> as_string() const noexcept;
+  inline simdjson_result<std::string_view> as_string() const noexcept;
 
   /**
    * Read this element as an unsigned integer.
@@ -835,7 +1121,7 @@ public:
    *         - UNEXPECTED_TYPE if the JSON element is not an integer
    *         - NUMBER_OUT_OF_RANGE if the integer doesn't fit in 64 bits or is negative
    */
-  element_result<uint64_t> as_uint64_t() const noexcept;
+  inline simdjson_result<uint64_t> as_uint64_t() const noexcept;
 
   /**
    * Read this element as a signed integer.
@@ -844,7 +1130,7 @@ public:
    *         - UNEXPECTED_TYPE if the JSON element is not an integer
    *         - NUMBER_OUT_OF_RANGE if the integer doesn't fit in 64 bits
    */
-  element_result<int64_t> as_int64_t() const noexcept;
+  inline simdjson_result<int64_t> as_int64_t() const noexcept;
 
   /**
    * Read this element as a floating point value.
@@ -852,7 +1138,7 @@ public:
    * @return The double value, or:
    *         - UNEXPECTED_TYPE if the JSON element is not a number
    */
-  element_result<double> as_double() const noexcept;
+  inline simdjson_result<double> as_double() const noexcept;
 
   /**
    * Read this element as a JSON array.
@@ -860,7 +1146,7 @@ public:
    * @return The array value, or:
    *         - UNEXPECTED_TYPE if the JSON element is not an array
    */
-  element_result<document::array> as_array() const noexcept;
+  inline array_result as_array() const noexcept;
 
   /**
    * Read this element as a JSON object (key/value pairs).
@@ -868,15 +1154,16 @@ public:
    * @return The object value, or:
    *         - UNEXPECTED_TYPE if the JSON element is not an object
    */
-  element_result<document::object> as_object() const noexcept;
+  inline object_result as_object() const noexcept;
 
+#if SIMDJSON_EXCEPTIONS
   /**
    * Read this element as a boolean.
    *
    * @return The boolean value
-   * @exception invalid_json(UNEXPECTED_TYPE) if the JSON element is not a boolean.
+   * @exception simdjson_error(UNEXPECTED_TYPE) if the JSON element is not a boolean.
    */
-  operator bool() const noexcept(false);
+  inline operator bool() const noexcept(false);
 
   /**
    * Read this element as a null-terminated string.
@@ -885,9 +1172,9 @@ public:
    * an actual string.
    *
    * @return The string value.
-   * @exception invalid_json(UNEXPECTED_TYPE) if the JSON element is not a string.
+   * @exception simdjson_error(UNEXPECTED_TYPE) if the JSON element is not a string.
    */
-  explicit operator const char*() const noexcept(false);
+  inline explicit operator const char*() const noexcept(false);
 
   /**
    * Read this element as a null-terminated string.
@@ -896,48 +1183,49 @@ public:
    * an actual string.
    *
    * @return The string value.
-   * @exception invalid_json(UNEXPECTED_TYPE) if the JSON element is not a string.
+   * @exception simdjson_error(UNEXPECTED_TYPE) if the JSON element is not a string.
    */
-  operator std::string_view() const noexcept(false);
+  inline operator std::string_view() const noexcept(false);
 
   /**
    * Read this element as an unsigned integer.
    *
    * @return The integer value.
-   * @exception invalid_json(UNEXPECTED_TYPE) if the JSON element is not an integer
-   * @exception invalid_json(NUMBER_OUT_OF_RANGE) if the integer doesn't fit in 64 bits or is negative
+   * @exception simdjson_error(UNEXPECTED_TYPE) if the JSON element is not an integer
+   * @exception simdjson_error(NUMBER_OUT_OF_RANGE) if the integer doesn't fit in 64 bits or is negative
    */
-  operator uint64_t() const noexcept(false);
+  inline operator uint64_t() const noexcept(false);
   /**
    * Read this element as an signed integer.
    *
    * @return The integer value.
-   * @exception invalid_json(UNEXPECTED_TYPE) if the JSON element is not an integer
-   * @exception invalid_json(NUMBER_OUT_OF_RANGE) if the integer doesn't fit in 64 bits
+   * @exception simdjson_error(UNEXPECTED_TYPE) if the JSON element is not an integer
+   * @exception simdjson_error(NUMBER_OUT_OF_RANGE) if the integer doesn't fit in 64 bits
    */
-  operator int64_t() const noexcept(false);
+  inline operator int64_t() const noexcept(false);
   /**
    * Read this element as an double.
    *
    * @return The double value.
-   * @exception invalid_json(UNEXPECTED_TYPE) if the JSON element is not a number
-   * @exception invalid_json(NUMBER_OUT_OF_RANGE) if the integer doesn't fit in 64 bits or is negative
+   * @exception simdjson_error(UNEXPECTED_TYPE) if the JSON element is not a number
+   * @exception simdjson_error(NUMBER_OUT_OF_RANGE) if the integer doesn't fit in 64 bits or is negative
    */
-  operator double() const noexcept(false);
+  inline operator double() const noexcept(false);
   /**
    * Read this element as a JSON array.
    *
    * @return The JSON array.
-   * @exception invalid_json(UNEXPECTED_TYPE) if the JSON element is not an array
+   * @exception simdjson_error(UNEXPECTED_TYPE) if the JSON element is not an array
    */
-  operator document::array() const noexcept(false);
+  inline operator document::array() const noexcept(false);
   /**
    * Read this element as a JSON object (key/value pairs).
    *
    * @return The JSON object.
-   * @exception invalid_json(UNEXPECTED_TYPE) if the JSON element is not an object
+   * @exception simdjson_error(UNEXPECTED_TYPE) if the JSON element is not an object
    */
-  operator document::object() const noexcept(false);
+  inline operator document::object() const noexcept(false);
+#endif // SIMDJSON_EXCEPTIONS
 
   /**
    * Get the value associated with the given key.
@@ -951,7 +1239,8 @@ public:
    *         - NO_SUCH_FIELD if the field does not exist in the object
    *         - UNEXPECTED_TYPE if the document is not an object
    */
-  element_result<element> operator[](const std::string_view &s) const noexcept;
+  inline element_result operator[](const std::string_view &s) const noexcept;
+
   /**
    * Get the value associated with the given key.
    *
@@ -964,41 +1253,44 @@ public:
    *         - NO_SUCH_FIELD if the field does not exist in the object
    *         - UNEXPECTED_TYPE if the document is not an object
    */
-  element_result<element> operator[](const char *s) const noexcept;
+  inline element_result operator[](const char *s) const noexcept;
 
 private:
-  element() noexcept;
-  element(const document *_doc, size_t _json_index) noexcept;
+  really_inline element(const document *_doc, size_t _json_index) noexcept;
   friend class document;
-  template<typename T>
   friend class document::element_result;
+  template<typename T>
+  friend class minify;
 };
 
 /**
  * Represents a JSON array.
  */
-class document::array : protected document::tape_ref {
+class document::array : protected internal::tape_ref {
 public:
+  /** Create a new, invalid array */
+  really_inline array() noexcept;
+
   class iterator : tape_ref {
   public:
     /**
      * Get the actual value
      */
-    element operator*() const noexcept;
+    inline element operator*() const noexcept;
     /**
      * Get the next value.
      *
      * Part of the std::iterator interface.
      */
-    void operator++() noexcept;
+    inline void operator++() noexcept;
     /**
      * Check if these values come from the same place in the JSON.
      *
      * Part of the std::iterator interface.
      */
-    bool operator!=(const iterator& other) const noexcept;
+    inline bool operator!=(const iterator& other) const noexcept;
   private:
-    iterator(const document *_doc, size_t _json_index) noexcept;
+    really_inline iterator(const document *_doc, size_t _json_index) noexcept;
     friend class array;
   };
 
@@ -1007,59 +1299,62 @@ public:
    *
    * Part of the std::iterable interface.
    */
-  iterator begin() const noexcept;
+  inline iterator begin() const noexcept;
   /**
    * One past the last array element.
    *
    * Part of the std::iterable interface.
    */
-  iterator end() const noexcept;
+  inline iterator end() const noexcept;
 
 private:
-  array() noexcept;
-  array(const document *_doc, size_t _json_index) noexcept;
+  really_inline array(const document *_doc, size_t _json_index) noexcept;
   friend class document::element;
-  template<typename T>
   friend class document::element_result;
+  template<typename T>
+  friend class minify;
 };
 
 /**
  * Represents a JSON object.
  */
-class document::object : protected document::tape_ref {
+class document::object : protected internal::tape_ref {
 public:
-  class iterator : protected document::tape_ref {
+  /** Create a new, invalid object */
+  really_inline object() noexcept;
+
+  class iterator : protected internal::tape_ref {
   public:
     /**
      * Get the actual key/value pair
      */
-    const document::key_value_pair operator*() const noexcept;
+    inline const document::key_value_pair operator*() const noexcept;
     /**
      * Get the next key/value pair.
      *
      * Part of the std::iterator interface.
      */
-    void operator++() noexcept;
+    inline void operator++() noexcept;
     /**
      * Check if these key value pairs come from the same place in the JSON.
      *
      * Part of the std::iterator interface.
      */
-    bool operator!=(const iterator& other) const noexcept;
+    inline bool operator!=(const iterator& other) const noexcept;
     /**
      * Get the key of this key/value pair.
      */
-    std::string_view key() const noexcept;
+    inline std::string_view key() const noexcept;
     /**
      * Get the key of this key/value pair.
      */
-    const char *key_c_str() const noexcept;
+    inline const char *key_c_str() const noexcept;
     /**
      * Get the value of this key/value pair.
      */
-    element value() const noexcept;
+    inline element value() const noexcept;
   private:
-    iterator(const document *_doc, size_t _json_index) noexcept;
+    really_inline iterator(const document *_doc, size_t _json_index) noexcept;
     friend class document::object;
   };
 
@@ -1068,13 +1363,13 @@ public:
    *
    * Part of the std::iterable interface.
    */
-  iterator begin() const noexcept;
+  inline iterator begin() const noexcept;
   /**
    * One past the last key/value pair.
    *
    * Part of the std::iterable interface.
    */
-  iterator end() const noexcept;
+  inline iterator end() const noexcept;
 
   /**
    * Get the value associated with the given key.
@@ -1087,7 +1382,8 @@ public:
    * @return The value associated with this field, or:
    *         - NO_SUCH_FIELD if the field does not exist in the object
    */
-  element_result<element> operator[](const std::string_view &s) const noexcept;
+  inline element_result operator[](const std::string_view &s) const noexcept;
+
   /**
    * Get the value associated with the given key.
    *
@@ -1099,14 +1395,14 @@ public:
    * @return The value associated with this field, or:
    *         - NO_SUCH_FIELD if the field does not exist in the object
    */
-  element_result<element> operator[](const char *s) const noexcept;
+  inline element_result operator[](const char *s) const noexcept;
 
 private:
-  object() noexcept;
-  object(const document *_doc, size_t _json_index) noexcept;
+  really_inline object(const document *_doc, size_t _json_index) noexcept;
   friend class document::element;
-  template<typename T>
   friend class document::element_result;
+  template<typename T>
+  friend class minify;
 };
 
 /**
@@ -1118,133 +1414,75 @@ public:
   document::element value;
 
 private:
-  key_value_pair(std::string_view _key, document::element _value) noexcept;
+  really_inline key_value_pair(std::string_view _key, document::element _value) noexcept;
   friend class document::object;
 };
 
 
-/**
- * The result of a JSON navigation or conversion, or an error (if the navigation or conversion
- * failed). Allows the user to pick whether to use exceptions or not.
- *
- * Use like this to avoid exceptions:
- *
- *     auto [str, error] = document::parse(json).root().as_string();
- *     if (error) { exit(1); }
- *     cout << str;
- *
- * Use like this if you'd prefer to use exceptions:
- *
- *     string str = document::parse(json).root();
- *     cout << str;
- *
- */
-template<typename T>
-class document::element_result {
+ /** The result of a JSON navigation that may fail. */
+class document::element_result : public simdjson_result<document::element> {
 public:
-  /** The value */
-  T value;
-  /** The error code (or 0 if there is no error) */
-  error_code error;
-
-  operator T() const noexcept(false);
-
-private:
-  element_result(T value) noexcept;
-  element_result(error_code _error) noexcept;
-  friend class document;
-  friend class element;
-};
-
-// Add exception-throwing navigation / conversion methods to element_result<element>
-template<>
-class document::element_result<document::element> {
-public:
-  /** The value */
-  element value;
-  /** The error code (or 0 if there is no error) */
-  error_code error;
+  really_inline element_result(element value) noexcept;
+  really_inline element_result(error_code error) noexcept;
 
   /** Whether this is a JSON `null` */
-  element_result<bool> is_null() const noexcept;
-  element_result<bool> as_bool() const noexcept;
-  element_result<std::string_view> as_string() const noexcept;
-  element_result<const char *> as_c_str() const noexcept;
-  element_result<uint64_t> as_uint64_t() const noexcept;
-  element_result<int64_t> as_int64_t() const noexcept;
-  element_result<double> as_double() const noexcept;
-  element_result<array> as_array() const noexcept;
-  element_result<object> as_object() const noexcept;
+  inline simdjson_result<bool> is_null() const noexcept;
+  inline simdjson_result<bool> as_bool() const noexcept;
+  inline simdjson_result<std::string_view> as_string() const noexcept;
+  inline simdjson_result<const char *> as_c_str() const noexcept;
+  inline simdjson_result<uint64_t> as_uint64_t() const noexcept;
+  inline simdjson_result<int64_t> as_int64_t() const noexcept;
+  inline simdjson_result<double> as_double() const noexcept;
+  inline array_result as_array() const noexcept;
+  inline object_result as_object() const noexcept;
 
-  operator bool() const noexcept(false);
-  explicit operator const char*() const noexcept(false);
-  operator std::string_view() const noexcept(false);
-  operator uint64_t() const noexcept(false);
-  operator int64_t() const noexcept(false);
-  operator double() const noexcept(false);
-  operator array() const noexcept(false);
-  operator object() const noexcept(false);
+  inline element_result operator[](const std::string_view &s) const noexcept;
+  inline element_result operator[](const char *s) const noexcept;
 
-  element_result<element> operator[](const std::string_view &s) const noexcept;
-  element_result<element> operator[](const char *s) const noexcept;
-
-private:
-  element_result(element value) noexcept;
-  element_result(error_code _error) noexcept;
-  friend class document;
-  friend class element;
+#if SIMDJSON_EXCEPTIONS
+  inline operator bool() const noexcept(false);
+  inline explicit operator const char*() const noexcept(false);
+  inline operator std::string_view() const noexcept(false);
+  inline operator uint64_t() const noexcept(false);
+  inline operator int64_t() const noexcept(false);
+  inline operator double() const noexcept(false);
+  inline operator array() const noexcept(false);
+  inline operator object() const noexcept(false);
+#endif // SIMDJSON_EXCEPTIONS
 };
 
-// Add exception-throwing navigation methods to element_result<array>
-template<>
-class document::element_result<document::array> {
+/** The result of a JSON conversion that may fail. */
+class document::array_result : public simdjson_result<document::array> {
 public:
-  /** The value */
-  array value;
-  /** The error code (or 0 if there is no error) */
-  error_code error;
+  really_inline array_result(array value) noexcept;
+  really_inline array_result(error_code error) noexcept;
 
-  operator array() const noexcept(false);
-
-  array::iterator begin() const noexcept(false);
-  array::iterator end() const noexcept(false);
-
-private:
-  element_result(array value) noexcept;
-  element_result(error_code _error) noexcept;
-  friend class document;
-  friend class element;
+#if SIMDJSON_EXCEPTIONS
+  inline array::iterator begin() const noexcept(false);
+  inline array::iterator end() const noexcept(false);
+#endif // SIMDJSON_EXCEPTIONS
 };
 
-// Add exception-throwing navigation methods to element_result<object>
-template<>
-class document::element_result<document::object> {
+/** The result of a JSON conversion that may fail. */
+class document::object_result : public simdjson_result<document::object> {
 public:
-  /** The value */
-  object value;
-  /** The error code (or 0 if there is no error) */
-  error_code error;
+  really_inline object_result(object value) noexcept;
+  really_inline object_result(error_code error) noexcept;
 
-  operator object() const noexcept(false);
+  inline element_result operator[](const std::string_view &s) const noexcept;
+  inline element_result operator[](const char *s) const noexcept;
 
-  object::iterator begin() const noexcept(false);
-  object::iterator end() const noexcept(false);
-
-  element_result<element> operator[](const std::string_view &s) const noexcept;
-  element_result<element> operator[](const char *s) const noexcept;
-
-private:
-  element_result(object value) noexcept;
-  element_result(error_code _error) noexcept;
-  friend class document;
-  friend class element;
+#if SIMDJSON_EXCEPTIONS
+  inline object::iterator begin() const noexcept(false);
+  inline object::iterator end() const noexcept(false);
+#endif // SIMDJSON_EXCEPTIONS
 };
 
 /**
   * A persistent document parser.
   *
-  * Use this if you intend to parse more than one document. It holds the internal memory necessary
-  * to do parsing, as well as memory for a single document that is overwritten on each parse.
+  * The parser is designed to be reused, holding the internal buffers necessary to do parsing,
+  * as well as memory for a single document. The parsed document is overwritten on each parse.
   *
   * This class cannot be copied, only moved, to avoid unintended allocations.
   *
@@ -1253,9 +1491,20 @@ private:
 class document::parser {
 public:
   /**
-  * Create a JSON parser with zero capacity. Call allocate_capacity() to initialize it.
+  * Create a JSON parser.
+  *
+  * The new parser will have zero capacity.
+  *
+  * @param max_capacity The maximum document length the parser can automatically handle. The parser
+  *    will allocate more capacity on an as needed basis (when it sees documents too big to handle)
+  *    up to this amount. The parser still starts with zero capacity no matter what this number is:
+  *    to allocate an initial capacity, call set_capacity() after constructing the parser. Defaults
+  *    to SIMDJSON_MAXSIZE_BYTES (the largest single document simdjson can process).
+  * @param max_depth The maximum depth--number of nested objects and arrays--this parser can handle.
+  *    This will not be allocated until parse() is called for the first time. Defaults to
+  *    DEFAULT_MAX_DEPTH.
   */
-  parser()=default;
+  really_inline parser(size_t max_capacity = SIMDJSON_MAXSIZE_BYTES, size_t max_depth = DEFAULT_MAX_DEPTH) noexcept;
   ~parser()=default;
 
   /**
@@ -1274,98 +1523,540 @@ public:
   parser &operator=(const document::parser &) = delete; // Disallow copying
 
   /**
-   * Parse a JSON document and return a reference to it.
+   * Load a JSON document from a file and return a reference to it.
+   *
+   *   document::parser parser;
+   *   const document &doc = parser.load("jsonexamples/twitter.json");
+   *
+   * ### IMPORTANT: Document Lifetime
    *
    * The JSON document still lives in the parser: this is the most efficient way to parse JSON
    * documents because it reuses the same buffers, but you *must* use the document before you
    * destroy the parser or call parse() again.
    *
+   * ### Parser Capacity
+   *
+   * If the parser's current capacity is less than the file length, it will allocate enough capacity
+   * to handle it (up to max_capacity).
+   *
+   * @param path The path to load.
+   * @return The document, or an error:
+   *         - IO_ERROR if there was an error opening or reading the file.
+   *         - MEMALLOC if the parser does not have enough capacity and memory allocation fails.
+   *         - CAPACITY if the parser does not have enough capacity and len > max_capacity.
+   *         - other json errors if parsing fails.
+   */
+  inline doc_result load(const std::string& path) noexcept; 
+
+  /**
+   * Load a file containing many JSON documents.
+   *
+   *   document::parser parser;
+   *   for (const document &doc : parser.parse_many(path)) {
+   *     cout << std::string(doc["title"]) << endl;
+   *   }
+   *
+   * ### Format
+   *
+   * The file must contain a series of one or more JSON documents, concatenated into a single
+   * buffer, separated by whitespace. It effectively parses until it has a fully valid document,
+   * then starts parsing the next document at that point. (It does this with more parallelism and
+   * lookahead than you might think, though.)
+   *
+   * documents that consist of an object or array may omit the whitespace between them, concatenating
+   * with no separator. documents that consist of a single primitive (i.e. documents that are not
+   * arrays or objects) MUST be separated with whitespace.
+   *
+   * ### Error Handling
+   *
+   * All errors are returned during iteration: if there is a global error such as memory allocation,
+   * it will be yielded as the first result. Iteration always stops after the first error.
+   *
+   * As with all other simdjson methods, non-exception error handling is readily available through
+   * the same interface, requiring you to check the error before using the document:
+   *
+   *   document::parser parser;
+   *   for (auto [doc, error] : parser.load_many(path)) {
+   *     if (error) { cerr << error << endl; exit(1); }
+   *     cout << std::string(doc["title"]) << endl;
+   *   }
+   *
+   * ### Threads
+   *
+   * When compiled with SIMDJSON_THREADS_ENABLED, this method will use a single thread under the
+   * hood to do some lookahead.
+   *
+   * ### Parser Capacity
+   *
+   * If the parser's current capacity is less than batch_size, it will allocate enough capacity
+   * to handle it (up to max_capacity).
+   *
+   * @param s The concatenated JSON to parse. Must have at least len + SIMDJSON_PADDING allocated bytes.
+   * @param batch_size The batch size to use. MUST be larger than the largest document. The sweet
+   *                   spot is cache-related: small enough to fit in cache, yet big enough to
+   *                   parse as many documents as possible in one tight loop.
+   *                   Defaults to 10MB, which has been a reasonable sweet spot in our tests.
+   * @return The stream. If there is an error, it will be returned during iteration. An empty input
+   *         will yield 0 documents rather than an EMPTY error. Errors:
+   *         - IO_ERROR if there was an error opening or reading the file.
+   *         - MEMALLOC if the parser does not have enough capacity and memory allocation fails.
+   *         - CAPACITY if the parser does not have enough capacity and batch_size > max_capacity.
+   *         - other json errors if parsing fails.
+   */
+  inline document::stream load_many(const std::string& path, size_t batch_size = DEFAULT_BATCH_SIZE) noexcept; 
+
+  /**
+   * Parse a JSON document and return a temporary reference to it.
+   *
+   *   document::parser parser;
+   *   const document &doc = parser.parse(buf, len);
+   *
+   * ### IMPORTANT: Document Lifetime
+   *
+   * The JSON document still lives in the parser: this is the most efficient way to parse JSON
+   * documents because it reuses the same buffers, but you *must* use the document before you
+   * destroy the parser or call parse() again.
+   *
+   * ### REQUIRED: Buffer Padding
+   *
    * The buffer must have at least SIMDJSON_PADDING extra allocated bytes. It does not matter what
-   * those bytes are initialized to, as long as they are allocated. If realloc_if_needed is true,
-   * it is assumed that the buffer does *not* have enough padding, and it is reallocated, enlarged
-   * and copied before parsing.
+   * those bytes are initialized to, as long as they are allocated.
+   *
+   * If realloc_if_needed is true, it is assumed that the buffer does *not* have enough padding,
+   * and it is copied into an enlarged temporary buffer before parsing.
+   *
+   * ### Parser Capacity
+   *
+   * If the parser's current capacity is less than len, it will allocate enough capacity
+   * to handle it (up to max_capacity).
    *
    * @param buf The JSON to parse. Must have at least len + SIMDJSON_PADDING allocated bytes, unless
    *            realloc_if_needed is true.
    * @param len The length of the JSON.
    * @param realloc_if_needed Whether to reallocate and enlarge the JSON buffer to add padding.
-   * @return the document, or an error if the JSON is invalid.
+   * @return The document, or an error:
+   *         - MEMALLOC if realloc_if_needed is true or the parser does not have enough capacity,
+   *           and memory allocation fails.
+   *         - CAPACITY if the parser does not have enough capacity and len > max_capacity.
+   *         - other json errors if parsing fails.
    */
-  doc_ref_result parse(const uint8_t *buf, size_t len, bool realloc_if_needed = true) noexcept;
+  inline doc_result parse(const uint8_t *buf, size_t len, bool realloc_if_needed = true) noexcept;
 
   /**
-   * Parse a JSON document and return a reference to it.
+   * Parse a JSON document and return a temporary reference to it.
+   *
+   *   document::parser parser;
+   *   const document &doc = parser.parse(buf, len);
+   *
+   * ### IMPORTANT: Document Lifetime
    *
    * The JSON document still lives in the parser: this is the most efficient way to parse JSON
    * documents because it reuses the same buffers, but you *must* use the document before you
    * destroy the parser or call parse() again.
    *
+   * ### REQUIRED: Buffer Padding
+   *
    * The buffer must have at least SIMDJSON_PADDING extra allocated bytes. It does not matter what
-   * those bytes are initialized to, as long as they are allocated. If realloc_if_needed is true,
-   * it is assumed that the buffer does *not* have enough padding, and it is reallocated, enlarged
-   * and copied before parsing.
+   * those bytes are initialized to, as long as they are allocated.
+   *
+   * If realloc_if_needed is true, it is assumed that the buffer does *not* have enough padding,
+   * and it is copied into an enlarged temporary buffer before parsing.
+   *
+   * ### Parser Capacity
+   *
+   * If the parser's current capacity is less than len, it will allocate enough capacity
+   * to handle it (up to max_capacity).
    *
    * @param buf The JSON to parse. Must have at least len + SIMDJSON_PADDING allocated bytes, unless
    *            realloc_if_needed is true.
    * @param len The length of the JSON.
    * @param realloc_if_needed Whether to reallocate and enlarge the JSON buffer to add padding.
-   * @return the document, or an error if the JSON is invalid.
+   * @return The document, or an error:
+   *         - MEMALLOC if realloc_if_needed is true or the parser does not have enough capacity,
+   *           and memory allocation fails.
+   *         - CAPACITY if the parser does not have enough capacity and len > max_capacity.
+   *         - other json errors if parsing fails.
    */
-  doc_ref_result parse(const char *buf, size_t len, bool realloc_if_needed = true) noexcept;
+  really_inline doc_result parse(const char *buf, size_t len, bool realloc_if_needed = true) noexcept;
 
   /**
-   * Parse a JSON document and return a reference to it.
+   * Parse a JSON document and return a temporary reference to it.
+   *
+   *   document::parser parser;
+   *   const document &doc = parser.parse(s);
+   *
+   * ### IMPORTANT: Document Lifetime
    *
    * The JSON document still lives in the parser: this is the most efficient way to parse JSON
    * documents because it reuses the same buffers, but you *must* use the document before you
    * destroy the parser or call parse() again.
    *
+   * ### REQUIRED: Buffer Padding
+   *
    * The buffer must have at least SIMDJSON_PADDING extra allocated bytes. It does not matter what
-   * those bytes are initialized to, as long as they are allocated. If `str.capacity() - str.size()
-   * < SIMDJSON_PADDING`, the string will be copied to a string with larger capacity before parsing.
+   * those bytes are initialized to, as long as they are allocated.
+   *
+   * If s.capacity() is less than SIMDJSON_PADDING, the string will be copied into an enlarged
+   * temporary buffer before parsing.
+   *
+   * ### Parser Capacity
+   *
+   * If the parser's current capacity is less than len, it will allocate enough capacity
+   * to handle it (up to max_capacity).
    *
    * @param s The JSON to parse. Must have at least len + SIMDJSON_PADDING allocated bytes, or
    *          a new string will be created with the extra padding.
-   * @return the document, or an error if the JSON is invalid.
+   * @return The document, or an error:
+   *         - MEMALLOC if the string does not have enough padding or the parser does not have
+   *           enough capacity, and memory allocation fails.
+   *         - CAPACITY if the parser does not have enough capacity and len > max_capacity.
+   *         - other json errors if parsing fails.
    */
-  doc_ref_result parse(const std::string &s) noexcept;
+  really_inline doc_result parse(const std::string &s) noexcept;
 
   /**
-   * Parse a JSON document and return a reference to it.
+   * Parse a JSON document and return a temporary reference to it.
+   *
+   *   document::parser parser;
+   *   const document &doc = parser.parse(s);
+   *
+   * ### IMPORTANT: Document Lifetime
    *
    * The JSON document still lives in the parser: this is the most efficient way to parse JSON
    * documents because it reuses the same buffers, but you *must* use the document before you
    * destroy the parser or call parse() again.
    *
+   * ### Parser Capacity
+   *
+   * If the parser's current capacity is less than batch_size, it will allocate enough capacity
+   * to handle it (up to max_capacity).
+   *
    * @param s The JSON to parse.
-   * @return the document, or an error if the JSON is invalid.
+   * @return The document, or an error:
+   *         - MEMALLOC if the parser does not have enough capacity and memory allocation fails.
+   *         - CAPACITY if the parser does not have enough capacity and len > max_capacity.
+   *         - other json errors if parsing fails.
    */
-  doc_ref_result parse(const padded_string &s) noexcept;
+  really_inline doc_result parse(const padded_string &s) noexcept;
 
   // We do not want to allow implicit conversion from C string to std::string.
-  doc_ref_result parse(const char *buf) noexcept = delete;
+  really_inline doc_result parse(const char *buf) noexcept = delete;
 
   /**
-   * Current capacity: the largest document this parser can support without reallocating.
+   * Parse a buffer containing many JSON documents.
+   *
+   *   document::parser parser;
+   *   for (const document &doc : parser.parse_many(buf, len)) {
+   *     cout << std::string(doc["title"]) << endl;
+   *   }
+   *
+   * ### Format
+   *
+   * The buffer must contain a series of one or more JSON documents, concatenated into a single
+   * buffer, separated by whitespace. It effectively parses until it has a fully valid document,
+   * then starts parsing the next document at that point. (It does this with more parallelism and
+   * lookahead than you might think, though.)
+   *
+   * documents that consist of an object or array may omit the whitespace between them, concatenating
+   * with no separator. documents that consist of a single primitive (i.e. documents that are not
+   * arrays or objects) MUST be separated with whitespace.
+   *
+   * ### Error Handling
+   *
+   * All errors are returned during iteration: if there is a global error such as memory allocation,
+   * it will be yielded as the first result. Iteration always stops after the first error.
+   *
+   * As with all other simdjson methods, non-exception error handling is readily available through
+   * the same interface, requiring you to check the error before using the document:
+   *
+   *   document::parser parser;
+   *   for (auto [doc, error] : parser.parse_many(buf, len)) {
+   *     if (error) { cerr << error << endl; exit(1); }
+   *     cout << std::string(doc["title"]) << endl;
+   *   }
+   *
+   * ### REQUIRED: Buffer Padding
+   *
+   * The buffer must have at least SIMDJSON_PADDING extra allocated bytes. It does not matter what
+   * those bytes are initialized to, as long as they are allocated.
+   *
+   * ### Threads
+   *
+   * When compiled with SIMDJSON_THREADS_ENABLED, this method will use a single thread under the
+   * hood to do some lookahead.
+   *
+   * ### Parser Capacity
+   *
+   * If the parser's current capacity is less than batch_size, it will allocate enough capacity
+   * to handle it (up to max_capacity).
+   *
+   * @param buf The concatenated JSON to parse. Must have at least len + SIMDJSON_PADDING allocated bytes.
+   * @param len The length of the concatenated JSON.
+   * @param batch_size The batch size to use. MUST be larger than the largest document. The sweet
+   *                   spot is cache-related: small enough to fit in cache, yet big enough to
+   *                   parse as many documents as possible in one tight loop.
+   *                   Defaults to 10MB, which has been a reasonable sweet spot in our tests.
+   * @return The stream. If there is an error, it will be returned during iteration. An empty input
+   *         will yield 0 documents rather than an EMPTY error. Errors:
+   *         - MEMALLOC if the parser does not have enough capacity and memory allocation fails
+   *         - CAPACITY if the parser does not have enough capacity and batch_size > max_capacity.
+   *         - other json errors if parsing fails.
    */
-  size_t capacity() const noexcept { return _capacity; }
+  inline stream parse_many(const uint8_t *buf, size_t len, size_t batch_size = DEFAULT_BATCH_SIZE) noexcept;
+
+  /**
+   * Parse a buffer containing many JSON documents.
+   *
+   *   document::parser parser;
+   *   for (const document &doc : parser.parse_many(buf, len)) {
+   *     cout << std::string(doc["title"]) << endl;
+   *   }
+   *
+   * ### Format
+   *
+   * The buffer must contain a series of one or more JSON documents, concatenated into a single
+   * buffer, separated by whitespace. It effectively parses until it has a fully valid document,
+   * then starts parsing the next document at that point. (It does this with more parallelism and
+   * lookahead than you might think, though.)
+   *
+   * documents that consist of an object or array may omit the whitespace between them, concatenating
+   * with no separator. documents that consist of a single primitive (i.e. documents that are not
+   * arrays or objects) MUST be separated with whitespace.
+   *
+   * ### Error Handling
+   *
+   * All errors are returned during iteration: if there is a global error such as memory allocation,
+   * it will be yielded as the first result. Iteration always stops after the first error.
+   *
+   * As with all other simdjson methods, non-exception error handling is readily available through
+   * the same interface, requiring you to check the error before using the document:
+   *
+   *   document::parser parser;
+   *   for (auto [doc, error] : parser.parse_many(buf, len)) {
+   *     if (error) { cerr << error << endl; exit(1); }
+   *     cout << std::string(doc["title"]) << endl;
+   *   }
+   *
+   * ### REQUIRED: Buffer Padding
+   *
+   * The buffer must have at least SIMDJSON_PADDING extra allocated bytes. It does not matter what
+   * those bytes are initialized to, as long as they are allocated.
+   *
+   * ### Threads
+   *
+   * When compiled with SIMDJSON_THREADS_ENABLED, this method will use a single thread under the
+   * hood to do some lookahead.
+   *
+   * ### Parser Capacity
+   *
+   * If the parser's current capacity is less than batch_size, it will allocate enough capacity
+   * to handle it (up to max_capacity).
+   *
+   * @param buf The concatenated JSON to parse. Must have at least len + SIMDJSON_PADDING allocated bytes.
+   * @param len The length of the concatenated JSON.
+   * @param batch_size The batch size to use. MUST be larger than the largest document. The sweet
+   *                   spot is cache-related: small enough to fit in cache, yet big enough to
+   *                   parse as many documents as possible in one tight loop.
+   *                   Defaults to 10MB, which has been a reasonable sweet spot in our tests.
+   * @return The stream. If there is an error, it will be returned during iteration. An empty input
+   *         will yield 0 documents rather than an EMPTY error. Errors:
+   *         - MEMALLOC if the parser does not have enough capacity and memory allocation fails
+   *         - CAPACITY if the parser does not have enough capacity and batch_size > max_capacity.
+   *         - other json errors if parsing fails
+   */
+  inline stream parse_many(const char *buf, size_t len, size_t batch_size = DEFAULT_BATCH_SIZE) noexcept;
+
+  /**
+   * Parse a buffer containing many JSON documents.
+   *
+   *   document::parser parser;
+   *   for (const document &doc : parser.parse_many(buf, len)) {
+   *     cout << std::string(doc["title"]) << endl;
+   *   }
+   *
+   * ### Format
+   *
+   * The buffer must contain a series of one or more JSON documents, concatenated into a single
+   * buffer, separated by whitespace. It effectively parses until it has a fully valid document,
+   * then starts parsing the next document at that point. (It does this with more parallelism and
+   * lookahead than you might think, though.)
+   *
+   * documents that consist of an object or array may omit the whitespace between them, concatenating
+   * with no separator. documents that consist of a single primitive (i.e. documents that are not
+   * arrays or objects) MUST be separated with whitespace.
+   *
+   * ### Error Handling
+   *
+   * All errors are returned during iteration: if there is a global error such as memory allocation,
+   * it will be yielded as the first result. Iteration always stops after the first error.
+   *
+   * As with all other simdjson methods, non-exception error handling is readily available through
+   * the same interface, requiring you to check the error before using the document:
+   *
+   *   document::parser parser;
+   *   for (auto [doc, error] : parser.parse_many(buf, len)) {
+   *     if (error) { cerr << error << endl; exit(1); }
+   *     cout << std::string(doc["title"]) << endl;
+   *   }
+   *
+   * ### REQUIRED: Buffer Padding
+   *
+   * The buffer must have at least SIMDJSON_PADDING extra allocated bytes. It does not matter what
+   * those bytes are initialized to, as long as they are allocated.
+   *
+   * ### Threads
+   *
+   * When compiled with SIMDJSON_THREADS_ENABLED, this method will use a single thread under the
+   * hood to do some lookahead.
+   *
+   * ### Parser Capacity
+   *
+   * If the parser's current capacity is less than batch_size, it will allocate enough capacity
+   * to handle it (up to max_capacity).
+   *
+   * @param s The concatenated JSON to parse. Must have at least len + SIMDJSON_PADDING allocated bytes.
+   * @param batch_size The batch size to use. MUST be larger than the largest document. The sweet
+   *                   spot is cache-related: small enough to fit in cache, yet big enough to
+   *                   parse as many documents as possible in one tight loop.
+   *                   Defaults to 10MB, which has been a reasonable sweet spot in our tests.
+   * @return The stream. If there is an error, it will be returned during iteration. An empty input
+   *         will yield 0 documents rather than an EMPTY error. Errors:
+   *         - MEMALLOC if the parser does not have enough capacity and memory allocation fails
+   *         - CAPACITY if the parser does not have enough capacity and batch_size > max_capacity.
+   *         - other json errors if parsing fails
+   */
+  inline stream parse_many(const std::string &s, size_t batch_size = DEFAULT_BATCH_SIZE) noexcept;
+
+  /**
+   * Parse a buffer containing many JSON documents.
+   *
+   *   document::parser parser;
+   *   for (const document &doc : parser.parse_many(buf, len)) {
+   *     cout << std::string(doc["title"]) << endl;
+   *   }
+   *
+   * ### Format
+   *
+   * The buffer must contain a series of one or more JSON documents, concatenated into a single
+   * buffer, separated by whitespace. It effectively parses until it has a fully valid document,
+   * then starts parsing the next document at that point. (It does this with more parallelism and
+   * lookahead than you might think, though.)
+   *
+   * documents that consist of an object or array may omit the whitespace between them, concatenating
+   * with no separator. documents that consist of a single primitive (i.e. documents that are not
+   * arrays or objects) MUST be separated with whitespace.
+   *
+   * ### Error Handling
+   *
+   * All errors are returned during iteration: if there is a global error such as memory allocation,
+   * it will be yielded as the first result. Iteration always stops after the first error.
+   *
+   * As with all other simdjson methods, non-exception error handling is readily available through
+   * the same interface, requiring you to check the error before using the document:
+   *
+   *   document::parser parser;
+   *   for (auto [doc, error] : parser.parse_many(buf, len)) {
+   *     if (error) { cerr << error << endl; exit(1); }
+   *     cout << std::string(doc["title"]) << endl;
+   *   }
+   *
+   * ### Threads
+   *
+   * When compiled with SIMDJSON_THREADS_ENABLED, this method will use a single thread under the
+   * hood to do some lookahead.
+   *
+   * ### Parser Capacity
+   *
+   * If the parser's current capacity is less than batch_size, it will allocate enough capacity
+   * to handle it (up to max_capacity).
+   *
+   * @param s The concatenated JSON to parse.
+   * @param batch_size The batch size to use. MUST be larger than the largest document. The sweet
+   *                   spot is cache-related: small enough to fit in cache, yet big enough to
+   *                   parse as many documents as possible in one tight loop.
+   *                   Defaults to 10MB, which has been a reasonable sweet spot in our tests.
+   * @return The stream. If there is an error, it will be returned during iteration. An empty input
+   *         will yield 0 documents rather than an EMPTY error. Errors:
+   *         - MEMALLOC if the parser does not have enough capacity and memory allocation fails
+   *         - CAPACITY if the parser does not have enough capacity and batch_size > max_capacity.
+   *         - other json errors if parsing fails
+   */
+  inline stream parse_many(const padded_string &s, size_t batch_size = DEFAULT_BATCH_SIZE) noexcept;
+
+  // We do not want to allow implicit conversion from C string to std::string.
+  really_inline doc_result parse_many(const char *buf, size_t batch_size = DEFAULT_BATCH_SIZE) noexcept = delete;
+
+  /**
+   * The largest document this parser can automatically support.
+   *
+   * The parser may reallocate internal buffers as needed up to this amount.
+   *
+   * @return Maximum capacity, in bytes.
+   */
+  really_inline size_t max_capacity() const noexcept;
+
+  /**
+   * The largest document this parser can support without reallocating.
+   *
+   * @return Current capacity, in bytes.
+   */
+  really_inline size_t capacity() const noexcept;
 
   /**
    * The maximum level of nested object and arrays supported by this parser.
+   *
+   * @return Maximum depth, in bytes.
    */
-  size_t max_depth() const noexcept { return _max_depth; }
+  really_inline size_t max_depth() const noexcept;
+
+  /**
+   * Set max_capacity. This is the largest document this parser can automatically support.
+   *
+   * The parser may reallocate internal buffers as needed up to this amount.
+   *
+   * This call will not allocate or deallocate, even if capacity is currently above max_capacity.
+   *
+   * @param max_capacity The new maximum capacity, in bytes.
+   */
+  really_inline void set_max_capacity(size_t max_capacity) noexcept;
+
+  /**
+   * Set capacity. This is the largest document this parser can support without reallocating.
+   *
+   * This will allocate or deallocate as necessary.
+   *
+   * @param capacity The new capacity, in bytes.
+   *
+   * @return MEMALLOC if unsuccessful, SUCCESS otherwise.
+   */
+  WARN_UNUSED inline error_code set_capacity(size_t capacity) noexcept;
+
+  /**
+   * Set the maximum level of nested object and arrays supported by this parser.
+   *
+   * This will allocate or deallocate as necessary.
+   *
+   * @param max_depth The new maximum depth, in bytes.
+   *
+   * @return MEMALLOC if unsuccessful, SUCCESS otherwise.
+   */
+  WARN_UNUSED inline error_code set_max_depth(size_t max_depth) noexcept;
 
   /**
    * Ensure this parser has enough memory to process JSON documents up to `capacity` bytes in length
    * and `max_depth` depth.
+   *
+   * Equivalent to calling set_capacity() and set_max_depth().
+   *
+   * @param capacity The new capacity.
+   * @param max_depth The new max_depth. Defaults to DEFAULT_MAX_DEPTH.
+   * @return true if successful, false if allocation failed.
    */
-  WARN_UNUSED bool allocate_capacity(size_t capacity, size_t max_depth = DEFAULT_MAX_DEPTH) {
-    return set_capacity(capacity) && set_max_depth(max_depth);
-  }
+  WARN_UNUSED inline bool allocate_capacity(size_t capacity, size_t max_depth = DEFAULT_MAX_DEPTH) noexcept;
 
   // type aliases for backcompat
   using Iterator = document::iterator;
-  using InvalidJSON = invalid_json;
+  using InvalidJSON = simdjson_error;
 
   // Next location to write to in the tape
   uint32_t current_loc{0};
@@ -1396,20 +2087,20 @@ public:
   //
 
   // returns true if the document parsed was valid
-  bool is_valid() const noexcept;
+  inline bool is_valid() const noexcept;
 
   // return an error code corresponding to the last parsing attempt, see
   // simdjson.h will return UNITIALIZED if no parsing was attempted
-  int get_error_code() const noexcept;
+  inline int get_error_code() const noexcept;
 
   // return the string equivalent of "get_error_code"
-  std::string get_error_message() const noexcept;
+  inline std::string get_error_message() const noexcept;
 
   // print the json to std::ostream (should be valid)
   // return false if the tape is likely wrong (e.g., you did not parse a valid
   // JSON).
-  bool print_json(std::ostream &os) const noexcept;
-  bool dump_raw_tape(std::ostream &os) const noexcept;
+  inline bool print_json(std::ostream &os) const noexcept;
+  inline bool dump_raw_tape(std::ostream &os) const noexcept;
 
   //
   // Parser callbacks: these are internal!
@@ -1418,31 +2109,24 @@ public:
   //
 
   // this should be called when parsing (right before writing the tapes)
-  void init_stage2() noexcept;
-  error_code on_error(error_code new_error_code) noexcept;
-  error_code on_success(error_code success_code) noexcept;
-  bool on_start_document(uint32_t depth) noexcept;
-  bool on_start_object(uint32_t depth) noexcept;
-  bool on_start_array(uint32_t depth) noexcept;
+  inline void init_stage2() noexcept;
+  really_inline error_code on_error(error_code new_error_code) noexcept;
+  really_inline error_code on_success(error_code success_code) noexcept;
+  really_inline bool on_start_document(uint32_t depth) noexcept;
+  really_inline bool on_start_object(uint32_t depth) noexcept;
+  really_inline bool on_start_array(uint32_t depth) noexcept;
   // TODO we're not checking this bool
-  bool on_end_document(uint32_t depth) noexcept;
-  bool on_end_object(uint32_t depth) noexcept;
-  bool on_end_array(uint32_t depth) noexcept;
-  bool on_true_atom() noexcept;
-  bool on_false_atom() noexcept;
-  bool on_null_atom() noexcept;
-  uint8_t *on_start_string() noexcept;
-  bool on_end_string(uint8_t *dst) noexcept;
-  bool on_number_s64(int64_t value) noexcept;
-  bool on_number_u64(uint64_t value) noexcept;
-  bool on_number_double(double value) noexcept;
-  //
-  // Called before a parse is initiated.
-  //
-  // - Returns CAPACITY if the document is too large
-  // - Returns MEMALLOC if we needed to allocate memory and could not
-  //
-  WARN_UNUSED error_code init_parse(size_t len) noexcept;
+  really_inline bool on_end_document(uint32_t depth) noexcept;
+  really_inline bool on_end_object(uint32_t depth) noexcept;
+  really_inline bool on_end_array(uint32_t depth) noexcept;
+  really_inline bool on_true_atom() noexcept;
+  really_inline bool on_false_atom() noexcept;
+  really_inline bool on_null_atom() noexcept;
+  really_inline uint8_t *on_start_string() noexcept;
+  really_inline bool on_end_string(uint8_t *dst) noexcept;
+  really_inline bool on_number_s64(int64_t value) noexcept;
+  really_inline bool on_number_u64(uint64_t value) noexcept;
+  really_inline bool on_number_double(double value) noexcept;
 
 private:
   //
@@ -1453,11 +2137,18 @@ private:
   size_t _capacity{0};
 
   //
+  // The maximum document length this parser will automatically support.
+  //
+  // The parser will not be automatically allocated above this amount.
+  //
+  size_t _max_capacity;
+
+  //
   // The maximum depth (number of nested objects and arrays) supported by this parser.
   //
   // Defaults to DEFAULT_MAX_DEPTH.
   //
-  size_t _max_depth{0};
+  size_t _max_depth;
 
   // all nodes are stored on the doc.tape using a 64-bit word.
   //
@@ -1473,32 +2164,177 @@ private:
   //
   //
 
-  void write_tape(uint64_t val, tape_type t) noexcept;
-  void annotate_previous_loc(uint32_t saved_loc, uint64_t val) noexcept;
+  inline void write_tape(uint64_t val, internal::tape_type t) noexcept;
+  inline void annotate_previous_loc(uint32_t saved_loc, uint64_t val) noexcept;
 
-  //
-  // Set the current capacity: the largest document this parser can support without reallocating.
-  //
-  // This will allocate *or deallocate* as necessary.
-  //
-  // Returns false if allocation fails.
-  //
-  WARN_UNUSED bool set_capacity(size_t capacity);
+  // Ensure we have enough capacity to handle at least desired_capacity bytes,
+  // and auto-allocate if not.
+  inline error_code ensure_capacity(size_t desired_capacity) noexcept;
 
-  //
-  // Set the maximum level of nested object and arrays supported by this parser.
-  //
-  // This will allocate *or deallocate* as necessary.
-  //
-  // Returns false if allocation fails.
-  //
-  WARN_UNUSED bool set_max_depth(size_t max_depth);
-
+#if SIMDJSON_EXCEPTIONS
   // Used internally to get the document
-  const document &get_document() const noexcept(false);
+  inline const document &get_document() const noexcept(false);
+#endif // SIMDJSON_EXCEPTIONS
 
   template<size_t max_depth> friend class document_iterator;
+  friend class document::stream;
 }; // class parser
+
+/**
+ * Minifies a JSON element or document, printing the smallest possible valid JSON.
+ *
+ *   document doc = document::parse("   [ 1 , 2 , 3 ] "_pad);
+ *   cout << minify(doc) << endl; // prints [1,2,3]
+ *
+ */
+template<typename T>
+class minify {
+public:
+  /**
+   * Create a new minifier.
+   *
+   * @param _value The document or element to minify.
+   */
+  inline minify(const T &_value) noexcept : value{_value} {}
+
+  /**
+   * Minify JSON to a string.
+   */
+  inline operator std::string() const noexcept { std::stringstream s; s << *this; return s.str(); }
+
+  /**
+   * Minify JSON to an output stream.
+   */
+  inline std::ostream& print(std::ostream& out);
+private:
+  const T &value;
+};
+
+/**
+ * Minify JSON to an output stream.
+ *
+ * @param out The output stream.
+ * @param formatter The minifier.
+ * @throw if there is an error with the underlying output stream. simdjson itself will not throw.
+ */
+template<typename T>
+inline std::ostream& operator<<(std::ostream& out, minify<T> formatter) { return formatter.print(out); }
+
+/**
+ * Print JSON to an output stream.
+ *
+ * By default, the document will be printed minified.
+ *
+ * @param out The output stream.
+ * @param value The document to print.
+ * @throw if there is an error with the underlying output stream. simdjson itself will not throw.
+ */
+inline std::ostream& operator<<(std::ostream& out, const document &value) { return out << minify(value); }
+/**
+ * Print JSON to an output stream.
+ *
+ * By default, the value will be printed minified.
+ *
+ * @param out The output stream.
+ * @param value The value to print.
+ * @throw if there is an error with the underlying output stream. simdjson itself will not throw.
+ */
+inline std::ostream& operator<<(std::ostream& out, const document::element &value) { return out << minify(value); };
+/**
+ * Print JSON to an output stream.
+ *
+ * By default, the value will be printed minified.
+ *
+ * @param out The output stream.
+ * @param value The value to print.
+ * @throw if there is an error with the underlying output stream. simdjson itself will not throw.
+ */
+inline std::ostream& operator<<(std::ostream& out, const document::array &value) { return out << minify(value); }
+/**
+ * Print JSON to an output stream.
+ *
+ * By default, the value will be printed minified.
+ *
+ * @param out The output stream.
+ * @param value The value to print.
+ * @throw if there is an error with the underlying output stream. simdjson itself will not throw.
+ */
+inline std::ostream& operator<<(std::ostream& out, const document::object &value) { return out << minify(value); }
+/**
+ * Print JSON to an output stream.
+ *
+ * By default, the value will be printed minified.
+ *
+ * @param out The output stream.
+ * @param value The value to print.
+ * @throw if there is an error with the underlying output stream. simdjson itself will not throw.
+ */
+inline std::ostream& operator<<(std::ostream& out, const document::key_value_pair &value) { return out << minify(value); }
+
+#if SIMDJSON_EXCEPTIONS
+
+/**
+ * Print JSON to an output stream.
+ *
+ * By default, the value will be printed minified.
+ *
+ * @param out The output stream.
+ * @param value The value to print.
+ * @throw simdjson_error if the result being printed has an error. If there is an error with the
+ *        underlying output stream, that error will be propagated (simdjson_error will not be
+ *        thrown).
+ */
+inline std::ostream& operator<<(std::ostream& out, const document::doc_move_result &value) noexcept(false) { return out << minify(value); }
+/**
+ * Print JSON to an output stream.
+ *
+ * By default, the value will be printed minified.
+ *
+ * @param out The output stream.
+ * @param value The value to print.
+ * @throw simdjson_error if the result being printed has an error. If there is an error with the
+ *        underlying output stream, that error will be propagated (simdjson_error will not be
+ *        thrown).
+ */
+inline std::ostream& operator<<(std::ostream& out, const document::doc_result &value) noexcept(false) { return out << minify(value); }
+/**
+ * Print JSON to an output stream.
+ *
+ * By default, the value will be printed minified.
+ *
+ * @param out The output stream.
+ * @param value The value to print.
+ * @throw simdjson_error if the result being printed has an error. If there is an error with the
+ *        underlying output stream, that error will be propagated (simdjson_error will not be
+ *        thrown).
+ */
+inline std::ostream& operator<<(std::ostream& out, const document::element_result &value) noexcept(false) { return out << minify(value); }
+/**
+ * Print JSON to an output stream.
+ *
+ * By default, the value will be printed minified.
+ *
+ * @param out The output stream.
+ * @param value The value to print.
+ * @throw simdjson_error if the result being printed has an error. If there is an error with the
+ *        underlying output stream, that error will be propagated (simdjson_error will not be
+ *        thrown).
+ */
+inline std::ostream& operator<<(std::ostream& out, const document::array_result &value) noexcept(false) { return out << minify(value); }
+/**
+ * Print JSON to an output stream.
+ *
+ * By default, the value will be printed minified.
+ *
+ * @param out The output stream.
+ * @param value The value to print.
+ * @throw simdjson_error if the result being printed has an error. If there is an error with the
+ *        underlying output stream, that error will be propagated (simdjson_error will not be
+ *        thrown).
+ */
+inline std::ostream& operator<<(std::ostream& out, const document::object_result &value) noexcept(false) { return out << minify(value); }
+
+#endif
 
 } // namespace simdjson
 
@@ -1543,7 +2379,7 @@ public:
   virtual uint32_t required_instruction_sets() const { return _required_instruction_sets; };
 
   /**
-   * Run a full document parse (init_parse, stage1 and stage2).
+   * Run a full document parse (ensure_capacity, stage1 and stage2).
    *
    * Overridden by each implementation.
    *
@@ -1562,7 +2398,7 @@ public:
    * @param buf the json document to parse. *MUST* be allocated up to len + SIMDJSON_PADDING bytes.
    * @param len the length of the json document.
    * @param parser the parser with the buffers to use. *MUST* have allocated up to at least len capacity.
-   * @param streaming whether this is being called by a JsonStream parser.
+   * @param streaming whether this is being called by document::parser::parse_many.
    * @return the error code, or SUCCESS if there was no error.
    */
   WARN_UNUSED virtual error_code stage1(const uint8_t *buf, size_t len, document::parser &parser, bool streaming) const noexcept = 0;
@@ -1580,7 +2416,7 @@ public:
   WARN_UNUSED virtual error_code stage2(const uint8_t *buf, size_t len, document::parser &parser) const noexcept = 0;
 
   /**
-   * Stage 2 of the document parser for JsonStream.
+   * Stage 2 of the document parser for document::parser::parse_many.
    *
    * Overridden by each implementation.
    *
@@ -1733,588 +2569,84 @@ inline internal::atomic_ptr<const implementation> active_implementation = &inter
 
 #endif // SIMDJSON_IMPLEMENTATION_H
 /* end file include/simdjson/simdjson.h */
-/* begin file include/simdjson/jsonstream.h */
-#ifndef SIMDJSON_JSONSTREAM_H
-#define SIMDJSON_JSONSTREAM_H
+/* begin file include/simdjson/document_stream.h */
+#ifndef SIMDJSON_DOCUMENT_STREAM_H
+#define SIMDJSON_DOCUMENT_STREAM_H
 
-#include <algorithm>
-#include <limits>
-#include <stdexcept>
 #include <thread>
-/* begin file include/simdjson/isadetection.h */
-/* From
-https://github.com/endorno/pytorch/blob/master/torch/lib/TH/generic/simd/simd.h
-Highly modified.
-
-Copyright (c) 2016-     Facebook, Inc            (Adam Paszke)
-Copyright (c) 2014-     Facebook, Inc            (Soumith Chintala)
-Copyright (c) 2011-2014 Idiap Research Institute (Ronan Collobert)
-Copyright (c) 2012-2014 Deepmind Technologies    (Koray Kavukcuoglu)
-Copyright (c) 2011-2012 NEC Laboratories America (Koray Kavukcuoglu)
-Copyright (c) 2011-2013 NYU                      (Clement Farabet)
-Copyright (c) 2006-2010 NEC Laboratories America (Ronan Collobert, Leon Bottou,
-Iain Melvin, Jason Weston) Copyright (c) 2006      Idiap Research Institute
-(Samy Bengio) Copyright (c) 2001-2004 Idiap Research Institute (Ronan Collobert,
-Samy Bengio, Johnny Mariethoz)
-
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright
-   notice, this list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright
-   notice, this list of conditions and the following disclaimer in the
-   documentation and/or other materials provided with the distribution.
-
-3. Neither the names of Facebook, Deepmind Technologies, NYU, NEC Laboratories
-America and IDIAP Research Institute nor the names of its contributors may be
-   used to endorse or promote products derived from this software without
-   specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGE.
-*/
-
-#ifndef SIMDJSON_ISADETECTION_H
-#define SIMDJSON_ISADETECTION_H
-
-#include <stdint.h>
-#include <stdlib.h>
-#if defined(_MSC_VER)
-#include <intrin.h>
-#elif defined(HAVE_GCC_GET_CPUID) && defined(USE_GCC_GET_CPUID)
-#include <cpuid.h>
-#endif
-
-namespace simdjson {
-// Can be found on Intel ISA Reference for CPUID
-constexpr uint32_t cpuid_avx2_bit = 1 << 5;      // Bit 5 of EBX for EAX=0x7
-constexpr uint32_t cpuid_bmi1_bit = 1 << 3;      // bit 3 of EBX for EAX=0x7
-constexpr uint32_t cpuid_bmi2_bit = 1 << 8;      // bit 8 of EBX for EAX=0x7
-constexpr uint32_t cpuid_sse42_bit = 1 << 20;    // bit 20 of ECX for EAX=0x1
-constexpr uint32_t cpuid_pclmulqdq_bit = 1 << 1; // bit  1 of ECX for EAX=0x1
-
-enum instruction_set {
-  DEFAULT = 0x0,
-  NEON = 0x1,
-  AVX2 = 0x4,
-  SSE42 = 0x8,
-  PCLMULQDQ = 0x10,
-  BMI1 = 0x20,
-  BMI2 = 0x40
-};
-
-#if defined(__arm__) || defined(__aarch64__) // incl. armel, armhf, arm64
-
-#if defined(__ARM_NEON)
-
-static inline uint32_t detect_supported_architectures() {
-  return instruction_set::NEON;
-}
-
-#else // ARM without NEON
-
-static inline uint32_t detect_supported_architectures() {
-  return instruction_set::DEFAULT;
-}
-
-#endif
-
-#else // x86
-static inline void cpuid(uint32_t *eax, uint32_t *ebx, uint32_t *ecx,
-                         uint32_t *edx) {
-#if defined(_MSC_VER)
-  int cpu_info[4];
-  __cpuid(cpu_info, *eax);
-  *eax = cpu_info[0];
-  *ebx = cpu_info[1];
-  *ecx = cpu_info[2];
-  *edx = cpu_info[3];
-#elif defined(HAVE_GCC_GET_CPUID) && defined(USE_GCC_GET_CPUID)
-  uint32_t level = *eax;
-  __get_cpuid(level, eax, ebx, ecx, edx);
-#else
-  uint32_t a = *eax, b, c = *ecx, d;
-  asm volatile("cpuid\n\t" : "+a"(a), "=b"(b), "+c"(c), "=d"(d));
-  *eax = a;
-  *ebx = b;
-  *ecx = c;
-  *edx = d;
-#endif
-}
-
-static inline uint32_t detect_supported_architectures() {
-  uint32_t eax, ebx, ecx, edx;
-  uint32_t host_isa = 0x0;
-
-  // ECX for EAX=0x7
-  eax = 0x7;
-  ecx = 0x0;
-  cpuid(&eax, &ebx, &ecx, &edx);
-#ifndef SIMDJSON_DISABLE_AVX2_DETECTION
-  if (ebx & cpuid_avx2_bit) {
-    host_isa |= instruction_set::AVX2;
-  }
-#endif 
-  if (ebx & cpuid_bmi1_bit) {
-    host_isa |= instruction_set::BMI1;
-  }
-
-  if (ebx & cpuid_bmi2_bit) {
-    host_isa |= instruction_set::BMI2;
-  }
-
-  // EBX for EAX=0x1
-  eax = 0x1;
-  cpuid(&eax, &ebx, &ecx, &edx);
-
-  if (ecx & cpuid_sse42_bit) {
-    host_isa |= instruction_set::SSE42;
-  }
-
-  if (ecx & cpuid_pclmulqdq_bit) {
-    host_isa |= instruction_set::PCLMULQDQ;
-  }
-
-  return host_isa;
-}
-
-#endif // end SIMD extension detection code
-} // namespace simdjson
-#endif
-/* end file include/simdjson/isadetection.h */
-/* begin file src/jsoncharutils.h */
-#ifndef SIMDJSON_JSONCHARUTILS_H
-#define SIMDJSON_JSONCHARUTILS_H
-
-/* begin file include/simdjson/parsedjson.h */
-// TODO Remove this -- deprecated API and files
-
-#ifndef SIMDJSON_PARSEDJSON_H
-#define SIMDJSON_PARSEDJSON_H
-
 
 namespace simdjson {
 
-using ParsedJson = document::parser;
+template <class string_container = padded_string> class JsonStream;
 
-} // namespace simdjson
-#endif
-/* end file include/simdjson/parsedjson.h */
-
-namespace simdjson {
-// structural chars here are
-// they are { 0x7b } 0x7d : 0x3a [ 0x5b ] 0x5d , 0x2c (and NULL)
-// we are also interested in the four whitespace characters
-// space 0x20, linefeed 0x0a, horizontal tab 0x09 and carriage return 0x0d
-
-// these are the chars that can follow a true/false/null or number atom
-// and nothing else
-const uint32_t structural_or_whitespace_or_null_negated[256] = {
-    0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1,
-
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1,
-
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-
-// return non-zero if not a structural or whitespace char
-// zero otherwise
-really_inline uint32_t is_not_structural_or_whitespace_or_null(uint8_t c) {
-  return structural_or_whitespace_or_null_negated[c];
-}
-
-const uint32_t structural_or_whitespace_negated[256] = {
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1,
-
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1,
-
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-
-// return non-zero if not a structural or whitespace char
-// zero otherwise
-really_inline uint32_t is_not_structural_or_whitespace(uint8_t c) {
-  return structural_or_whitespace_negated[c];
-}
-
-const uint32_t structural_or_whitespace_or_null[256] = {
-    1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-really_inline uint32_t is_structural_or_whitespace_or_null(uint8_t c) {
-  return structural_or_whitespace_or_null[c];
-}
-
-const uint32_t structural_or_whitespace[256] = {
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-really_inline uint32_t is_structural_or_whitespace(uint8_t c) {
-  return structural_or_whitespace[c];
-}
-
-const uint32_t digit_to_val32[886] = {
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0x0,        0x1,        0x2,        0x3,        0x4,        0x5,
-    0x6,        0x7,        0x8,        0x9,        0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xa,
-    0xb,        0xc,        0xd,        0xe,        0xf,        0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xa,        0xb,        0xc,        0xd,        0xe,
-    0xf,        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0x0,        0x10,       0x20,       0x30,       0x40,       0x50,
-    0x60,       0x70,       0x80,       0x90,       0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xa0,
-    0xb0,       0xc0,       0xd0,       0xe0,       0xf0,       0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xa0,       0xb0,       0xc0,       0xd0,       0xe0,
-    0xf0,       0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0x0,        0x100,      0x200,      0x300,      0x400,      0x500,
-    0x600,      0x700,      0x800,      0x900,      0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xa00,
-    0xb00,      0xc00,      0xd00,      0xe00,      0xf00,      0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xa00,      0xb00,      0xc00,      0xd00,      0xe00,
-    0xf00,      0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0x0,        0x1000,     0x2000,     0x3000,     0x4000,     0x5000,
-    0x6000,     0x7000,     0x8000,     0x9000,     0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xa000,
-    0xb000,     0xc000,     0xd000,     0xe000,     0xf000,     0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xa000,     0xb000,     0xc000,     0xd000,     0xe000,
-    0xf000,     0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
-// returns a value with the high 16 bits set if not valid
-// otherwise returns the conversion of the 4 hex digits at src into the bottom
-// 16 bits of the 32-bit return register
-//
-// see
-// https://lemire.me/blog/2019/04/17/parsing-short-hexadecimal-strings-efficiently/
-static inline uint32_t hex_to_u32_nocheck(
-    const uint8_t *src) { // strictly speaking, static inline is a C-ism
-  uint32_t v1 = digit_to_val32[630 + src[0]];
-  uint32_t v2 = digit_to_val32[420 + src[1]];
-  uint32_t v3 = digit_to_val32[210 + src[2]];
-  uint32_t v4 = digit_to_val32[0 + src[3]];
-  return v1 | v2 | v3 | v4;
-}
-
-// returns true if the provided byte value is a 
-// "continuing" UTF-8 value, that is, if it starts with
-// 0b10...
-static inline bool is_utf8_continuing(char c) {
-  // in 2 complement's notation, values start at 0b10000 (-128)... and
-  // go up to 0b11111 (-1)... so we want all values from -128 to -65 (which is 0b10111111)
-  return ((signed char)c) <= -65;
-}
-// returns true if the provided byte value is an ASCII character
-static inline bool is_ascii(char c) {
-  return ((unsigned char)c) <= 127;
-}
-
-// if the string ends with  UTF-8 values, backtrack 
-// up to the first ASCII character. May return 0.
-static inline size_t trimmed_length_safe_utf8(const char * c, size_t len) {
-  while ((len > 0) and (not is_ascii(c[len - 1]))) {
-    len--;
-  }
-  return len;
-}
-
-
-
-// given a code point cp, writes to c
-// the utf-8 code, outputting the length in
-// bytes, if the length is zero, the code point
-// is invalid
-//
-// This can possibly be made faster using pdep
-// and clz and table lookups, but JSON documents
-// have few escaped code points, and the following
-// function looks cheap.
-//
-// Note: we assume that surrogates are treated separately
-//
-inline size_t codepoint_to_utf8(uint32_t cp, uint8_t *c) {
-  if (cp <= 0x7F) {
-    c[0] = cp;
-    return 1; // ascii
-  }
-  if (cp <= 0x7FF) {
-    c[0] = (cp >> 6) + 192;
-    c[1] = (cp & 63) + 128;
-    return 2; // universal plane
-    //  Surrogates are treated elsewhere...
-    //} //else if (0xd800 <= cp && cp <= 0xdfff) {
-    //  return 0; // surrogates // could put assert here
-  } else if (cp <= 0xFFFF) {
-    c[0] = (cp >> 12) + 224;
-    c[1] = ((cp >> 6) & 63) + 128;
-    c[2] = (cp & 63) + 128;
-    return 3;
-  } else if (cp <= 0x10FFFF) { // if you know you have a valid code point, this
-                               // is not needed
-    c[0] = (cp >> 18) + 240;
-    c[1] = ((cp >> 12) & 63) + 128;
-    c[2] = ((cp >> 6) & 63) + 128;
-    c[3] = (cp & 63) + 128;
-    return 4;
-  }
-  // will return 0 when the code point was too large.
-  return 0; // bad r
-}
-} // namespace simdjson
-
-#endif
-/* end file include/simdjson/parsedjson.h */
-
-
-namespace simdjson {
-/*************************************************************************************
- * The main motivation for this piece of software is to achieve maximum speed
- *and offer
- * good quality of life while parsing files containing multiple JSON documents.
- *
- * Since we want to offer flexibility and not restrict ourselves to a specific
- *file
- * format, we support any file that contains any valid JSON documents separated
- *by one
- * or more character that is considered a whitespace by the JSON spec.
- * Namely: space, nothing, linefeed, carriage return, horizontal tab.
- * Anything that is not whitespace will be parsed as a JSON document and could
- *lead
- * to failure.
- *
- * To offer maximum parsing speed, our implementation processes the data inside
- *the
- * buffer by batches and their size is defined by the parameter "batch_size".
- * By loading data in batches, we can optimize the time spent allocating data in
- *the
- * parser and can also open the possibility of multi-threading.
- * The batch_size must be at least as large as the biggest document in the file,
- *but
- * not too large in order to submerge the chached memory.  We found that 1MB is
- * somewhat a sweet spot for now.  Eventually, this batch_size could be fully
- * automated and be optimal at all times.
- ************************************************************************************/
 /**
-*  The template parameter (string_container) must
-* support the data() and size() methods, returning a pointer
-* to a char* and to the number of bytes respectively.
-* The simdjson parser may read up to SIMDJSON_PADDING bytes beyond the end
-* of the string, so if you do not use a padded_string container,
-* you have the responsability to overallocated. If you fail to
-* do so, your software may crash if you cross a page boundary,
-* and you should expect memory checkers to object.
-* Most users should use a simdjson::padded_string.
-*/
-template <class string_container = padded_string> class JsonStream {
+ * A forward-only stream of documents.
+ *
+ * Produced by document::parser::parse_many.
+ *
+ */
+class document::stream {
 public:
-  /* Create a JsonStream object that can be used to parse sequentially the valid
-   * JSON documents found in the buffer "buf".
-   *
-   * The batch_size must be at least as large as the biggest document in the
-   * file, but
-   * not too large to submerge the cached memory.  We found that 1MB is
-   * somewhat a sweet spot for now.
-   *
-   * The user is expected to call the following json_parse method to parse the
-   * next
-   * valid JSON document found in the buffer.  This method can and is expected
-   * to be
-   * called in a loop.
-   *
-   * Various methods are offered to keep track of the status, like
-   * get_current_buffer_loc,
-   * get_n_parsed_docs, get_n_bytes_parsed, etc.
-   *
-   * */
-  JsonStream(const string_container &s, size_t batch_size = 1000000);
+  really_inline ~stream() noexcept;
 
-  ~JsonStream();
+  /**
+   * An iterator through a forward-only stream of documents.
+   */
+  class iterator {
+  public:
+    /**
+     * Get the current document (or error).
+     */
+    really_inline doc_result operator*() noexcept;
+    /**
+     * Advance to the next document.
+     */
+    inline iterator& operator++() noexcept;
+    /**
+     * Check if we're at the end yet.
+     * @param other the end iterator to compare to.
+     */
+    really_inline bool operator!=(const iterator &other) const noexcept;
 
-  /* Parse the next document found in the buffer previously given to JsonStream.
+  private:
+    iterator(stream& stream, bool finished) noexcept;
+    /** The stream parser we're iterating through. */
+    stream& _stream;
+    /** Whether we're finished or not. */
+    bool finished;
+    friend class stream;
+  };
 
+  /**
+   * Start iterating the documents in the stream.
+   */
+  really_inline iterator begin() noexcept;
+  /**
+   * The end of the stream, for iterator comparison purposes.
+   */
+  really_inline iterator end() noexcept;
+
+private:
+
+  stream &operator=(const document::stream &) = delete; // Disallow copying
+
+  stream(document::stream &other) = delete;    // Disallow copying
+
+  really_inline stream(document::parser &parser, const uint8_t *buf, size_t len, size_t batch_size, error_code error = SUCCESS) noexcept;
+
+  /**
+   * Parse the next document found in the buffer previously given to stream.
+   *
    * The content should be a valid JSON document encoded as UTF-8. If there is a
    * UTF-8 BOM, the caller is responsible for omitting it, UTF-8 BOM are
    * discouraged.
    *
    * You do NOT need to pre-allocate a parser.  This function takes care of
-   * pre-allocating a capacity defined by the batch_size defined when creating
-   the
-   * JsonStream object.
+   * pre-allocating a capacity defined by the batch_size defined when creating the
+   * stream object.
    *
-   * The function returns simdjson::SUCCESS_AND_HAS_MORE (an integer = 1) in
-   case
-   * of success and indicates that the buffer still contains more data to be
-   parsed,
+   * The function returns simdjson::SUCCESS_AND_HAS_MORE (an integer = 1) in case
+   * of success and indicates that the buffer still contains more data to be parsed,
    * meaning this function can be called again to return the next JSON document
    * after this one.
    *
@@ -2322,43 +2654,46 @@ public:
    * and indicates that the buffer has successfully been parsed to the end.
    * Every document it contained has been parsed without error.
    *
-   * The function returns an error code from simdjson/simdjson.h in case of
-   failure
-   * such as simdjson::CAPACITY, simdjson::MEMALLOC, simdjson::DEPTH_ERROR and
-   so forth;
-   * the simdjson::error_message function converts these error codes into a
-   * string).
+   * The function returns an error code from simdjson/simdjson.h in case of failure
+   * such as simdjson::CAPACITY, simdjson::MEMALLOC, simdjson::DEPTH_ERROR and so forth;
+   * the simdjson::error_message function converts these error codes into a string).
    *
-   * You can also check validity by calling parser.is_valid(). The same parser
-   can
+   * You can also check validity by calling parser.is_valid(). The same parser can
    * and should be reused for the other documents in the buffer. */
-  int json_parse(document::parser &parser);
+  inline error_code json_parse() noexcept;
 
-  /* Returns the location (index) of where the next document should be in the
+  /**
+   * Returns the location (index) of where the next document should be in the
    * buffer.
    * Can be used for debugging, it tells the user the position of the end of the
    * last
-   * valid JSON document parsed*/
+   * valid JSON document parsed
+   */
   inline size_t get_current_buffer_loc() const { return current_buffer_loc; }
 
-  /* Returns the total amount of complete documents parsed by the JsonStream,
-   * in the current buffer, at the given time.*/
+  /**
+   * Returns the total amount of complete documents parsed by the stream,
+   * in the current buffer, at the given time.
+   */
   inline size_t get_n_parsed_docs() const { return n_parsed_docs; }
 
-  /* Returns the total amount of data (in bytes) parsed by the JsonStream,
-   * in the current buffer, at the given time.*/
+  /**
+   * Returns the total amount of data (in bytes) parsed by the stream,
+   * in the current buffer, at the given time.
+   */
   inline size_t get_n_bytes_parsed() const { return n_bytes_parsed; }
 
-private:
-  inline const uint8_t *buf() const { return reinterpret_cast<uint8_t*>(str.data()) + str_start; }
+  inline const uint8_t *buf() const { return _buf + buf_start; }
 
-  inline void advance(size_t offset) { str_start += offset; }
+  inline void advance(size_t offset) { buf_start += offset; }
 
-  inline size_t remaining() const { return str.size() - str_start; }
+  inline size_t remaining() const { return _len - buf_start; }
 
-  const string_container &str;
+  document::parser &parser;
+  const uint8_t *_buf;
+  const size_t _len;
   size_t _batch_size; // this is actually variable!
-  size_t str_start{0};
+  size_t buf_start{0};
   size_t next_json{0};
   bool load_next_batch{true};
   size_t current_buffer_loc{0};
@@ -2367,245 +2702,19 @@ private:
 #endif
   size_t n_parsed_docs{0};
   size_t n_bytes_parsed{0};
-  simdjson::implementation *stage_parser;
+  error_code error{SUCCESS_AND_HAS_MORE};
 #ifdef SIMDJSON_THREADS_ENABLED
   error_code stage1_is_ok_thread{SUCCESS};
   std::thread stage_1_thread;
   document::parser parser_thread;
 #endif
-}; // end of class JsonStream
-
-/* This algorithm is used to quickly identify the buffer position of
- * the last JSON document inside the current batch.
- *
- * It does its work by finding the last pair of structural characters
- * that represent the end followed by the start of a document.
- *
- * Simply put, we iterate over the structural characters, starting from
- * the end. We consider that we found the end of a JSON document when the
- * first element of the pair is NOT one of these characters: '{' '[' ';' ','
- * and when the second element is NOT one of these characters: '}' '}' ';' ','.
- *
- * This simple comparison works most of the time, but it does not cover cases
- * where the batch's structural indexes contain a perfect amount of documents.
- * In such a case, we do not have access to the structural index which follows
- * the last document, therefore, we do not have access to the second element in
- * the pair, and means that we cannot identify the last document. To fix this
- * issue, we keep a count of the open and closed curly/square braces we found
- * while searching for the pair. When we find a pair AND the count of open and
- * closed curly/square braces is the same, we know that we just passed a
- * complete
- * document, therefore the last json buffer location is the end of the batch
- * */
-inline size_t find_last_json_buf_idx(const uint8_t *buf, size_t size,
-                                     const document::parser &parser) {
-  // this function can be generally useful
-  if (parser.n_structural_indexes == 0)
-    return 0;
-  auto last_i = parser.n_structural_indexes - 1;
-  if (parser.structural_indexes[last_i] == size) {
-    if (last_i == 0)
-      return 0;
-    last_i = parser.n_structural_indexes - 2;
-  }
-  auto arr_cnt = 0;
-  auto obj_cnt = 0;
-  for (auto i = last_i; i > 0; i--) {
-    auto idxb = parser.structural_indexes[i];
-    switch (buf[idxb]) {
-    case ':':
-    case ',':
-      continue;
-    case '}':
-      obj_cnt--;
-      continue;
-    case ']':
-      arr_cnt--;
-      continue;
-    case '{':
-      obj_cnt++;
-      break;
-    case '[':
-      arr_cnt++;
-      break;
-    }
-    auto idxa = parser.structural_indexes[i - 1];
-    switch (buf[idxa]) {
-    case '{':
-    case '[':
-    case ':':
-    case ',':
-      continue;
-    }
-    if (!arr_cnt && !obj_cnt) {
-      return last_i + 1;
-    }
-    return i;
-  }
-  return 0;
-}
-
-template <class string_container>
-JsonStream<string_container>::JsonStream(const string_container &s,
-                                         size_t batchSize)
-    : str(s), _batch_size(batchSize) {
-}
-
-template <class string_container> JsonStream<string_container>::~JsonStream() {
-#ifdef SIMDJSON_THREADS_ENABLED
-  if (stage_1_thread.joinable()) {
-    stage_1_thread.join();
-  }
-#endif
-}
-
-#ifdef SIMDJSON_THREADS_ENABLED
-
-// threaded version of json_parse
-// todo: simplify this code further
-template <class string_container>
-int JsonStream<string_container>::json_parse(document::parser &parser) {
-  if (unlikely(parser.capacity() == 0)) {
-    const bool allocok = parser.allocate_capacity(_batch_size);
-    if (!allocok) {
-      return parser.error = simdjson::MEMALLOC;
-    }
-  } else if (unlikely(parser.capacity() < _batch_size)) {
-    return parser.error = simdjson::CAPACITY;
-  }
-  if (unlikely(parser_thread.capacity() < _batch_size)) {
-    const bool allocok_thread = parser_thread.allocate_capacity(_batch_size);
-    if (!allocok_thread) {
-      return parser.error = simdjson::MEMALLOC;
-    }
-  }
-  if (unlikely(load_next_batch)) {
-    // First time loading
-    if (!stage_1_thread.joinable()) {
-      _batch_size = (std::min)(_batch_size, remaining());
-      _batch_size = trimmed_length_safe_utf8((const char *)buf(), _batch_size);
-      if (_batch_size == 0) {
-        return parser.error = simdjson::UTF8_ERROR;
-      }
-      auto stage1_is_ok = error_code(simdjson::active_implementation->stage1(buf(), _batch_size, parser, true));
-      if (stage1_is_ok != simdjson::SUCCESS) {
-        return parser.error = stage1_is_ok;
-      }
-      size_t last_index = find_last_json_buf_idx(buf(), _batch_size, parser);
-      if (last_index == 0) {
-        if (parser.n_structural_indexes == 0) {
-          return parser.error = simdjson::EMPTY;
-        }
-      } else {
-        parser.n_structural_indexes = last_index + 1;
-      }
-    }
-    // the second thread is running or done.
-    else {
-      stage_1_thread.join();
-      if (stage1_is_ok_thread != simdjson::SUCCESS) {
-        return parser.error = stage1_is_ok_thread;
-      }
-      std::swap(parser.structural_indexes, parser_thread.structural_indexes);
-      parser.n_structural_indexes = parser_thread.n_structural_indexes;
-      advance(last_json_buffer_loc);
-      n_bytes_parsed += last_json_buffer_loc;
-    }
-    // let us decide whether we will start a new thread
-    if (remaining() - _batch_size > 0) {
-      last_json_buffer_loc =
-          parser.structural_indexes[find_last_json_buf_idx(buf(), _batch_size, parser)];
-      _batch_size = (std::min)(_batch_size, remaining() - last_json_buffer_loc);
-      if (_batch_size > 0) {
-        _batch_size = trimmed_length_safe_utf8(
-            (const char *)(buf() + last_json_buffer_loc), _batch_size);
-        if (_batch_size == 0) {
-          return parser.error = simdjson::UTF8_ERROR;
-        }
-        // let us capture read-only variables
-        const uint8_t *const b = buf() + last_json_buffer_loc;
-        const size_t bs = _batch_size;
-        // we call the thread on a lambda that will update
-        // this->stage1_is_ok_thread
-        // there is only one thread that may write to this value
-        stage_1_thread = std::thread([this, b, bs] {
-          this->stage1_is_ok_thread = error_code(simdjson::active_implementation->stage1(b, bs, this->parser_thread, true));
-        });
-      }
-    }
-    next_json = 0;
-    load_next_batch = false;
-  } // load_next_batch
-  int res = simdjson::active_implementation->stage2(buf(), remaining(), parser, next_json);
-  if (res == simdjson::SUCCESS_AND_HAS_MORE) {
-    n_parsed_docs++;
-    current_buffer_loc = parser.structural_indexes[next_json];
-    load_next_batch = (current_buffer_loc == last_json_buffer_loc);
-  } else if (res == simdjson::SUCCESS) {
-    n_parsed_docs++;
-    if (remaining() > _batch_size) {
-      current_buffer_loc = parser.structural_indexes[next_json - 1];
-      load_next_batch = true;
-      res = simdjson::SUCCESS_AND_HAS_MORE;
-    }
-  }
-  return res;
-}
-
-#else  // SIMDJSON_THREADS_ENABLED
-
-// single-threaded version of json_parse
-template <class string_container>
-int JsonStream<string_container>::json_parse(document::parser &parser) {
-  if (unlikely(parser.capacity() == 0)) {
-    const bool allocok = parser.allocate_capacity(_batch_size);
-    if (!allocok) {
-      return parser.on_error(MEMALLOC);
-    }
-  } else if (unlikely(parser.capacity() < _batch_size)) {
-    return parser.on_error(CAPACITY);
-  }
-  if (unlikely(load_next_batch)) {
-    advance(current_buffer_loc);
-    n_bytes_parsed += current_buffer_loc;
-    _batch_size = (std::min)(_batch_size, remaining());
-    _batch_size = trimmed_length_safe_utf8((const char *)buf(), _batch_size);
-    auto stage1_is_ok = (error_code)simdjson::active_implementation->stage1(buf(), _batch_size, parser, true);
-    if (stage1_is_ok != simdjson::SUCCESS) {
-      return parser.on_error(stage1_is_ok);
-    }
-    size_t last_index = find_last_json_buf_idx(buf(), _batch_size, parser);
-    if (last_index == 0) {
-      if (parser.n_structural_indexes == 0) {
-        return parser.on_error(EMPTY);
-      }
-    } else {
-      parser.n_structural_indexes = last_index + 1;
-    }
-    load_next_batch = false;
-  } // load_next_batch
-  int res = simdjson::active_implementation->stage2(buf(), remaining(), parser, next_json);
-  if (likely(res == simdjson::SUCCESS_AND_HAS_MORE)) {
-    n_parsed_docs++;
-    current_buffer_loc = parser.structural_indexes[next_json];
-  } else if (res == simdjson::SUCCESS) {
-    n_parsed_docs++;
-    if (remaining() > _batch_size) {
-      current_buffer_loc = parser.structural_indexes[next_json - 1];
-      next_json = 1;
-      load_next_batch = true;
-      res = simdjson::SUCCESS_AND_HAS_MORE;
-    }
-  } else {
-    printf("E\n");
-  }
-  return res;
-}
-#endif // SIMDJSON_THREADS_ENABLED
+  template <class string_container> friend class JsonStream;
+  friend class document::parser;
+}; // class document::stream
 
 } // end of namespace simdjson
-#endif // SIMDJSON_JSONSTREAM_H
-/* end file include/simdjson/parsedjson.h */
+#endif // SIMDJSON_DOCUMENT_STREAM_H
+/* end file include/simdjson/document_stream.h */
 /* begin file include/simdjson/jsonminifier.h */
 #ifndef SIMDJSON_JSONMINIFIER_H
 #define SIMDJSON_JSONMINIFIER_H
@@ -2634,8 +2743,10 @@ static inline size_t json_minify(const std::string_view &p, char *out) {
 static inline size_t json_minify(const padded_string &p, char *out) {
   return json_minify(p.data(), p.size(), out);
 }
+
 } // namespace simdjson
-#endif
+
+#endif // SIMDJSON_JSONMINIFIER_H
 /* end file include/simdjson/jsonminifier.h */
 
 // Deprecated API
@@ -2656,140 +2767,89 @@ static inline size_t json_minify(const padded_string &p, char *out) {
 #include <limits>
 #include <stdexcept>
 
-/* begin file include/simdjson/jsonformatutils.h */
-#ifndef SIMDJSON_JSONFORMATUTILS_H
-#define SIMDJSON_JSONFORMATUTILS_H
+/* begin file include/simdjson/internal/jsonformatutils.h */
+#ifndef SIMDJSON_INTERNAL_JSONFORMATUTILS_H
+#define SIMDJSON_INTERNAL_JSONFORMATUTILS_H
 
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 
-namespace simdjson {
+namespace simdjson::internal {
 
+class escape_json_string;
 
-// ends with zero char
-static inline void print_with_escapes(const unsigned char *src,
-                                      std::ostream &os) {
-  while (*src) {
-    switch (*src) {
+inline std::ostream& operator<<(std::ostream& out, const escape_json_string &str);
+
+class escape_json_string {
+public:
+  escape_json_string(std::string_view _str) noexcept : str{_str} {}
+  operator std::string() const noexcept { std::stringstream s; s << *this; return s.str(); }
+private:
+  std::string_view str;
+  friend std::ostream& operator<<(std::ostream& out, const escape_json_string &unescaped);
+};
+
+inline std::ostream& operator<<(std::ostream& out, const escape_json_string &unescaped) {
+  for (size_t i=0; i<unescaped.str.length(); i++) {
+    switch (unescaped.str[i]) {
     case '\b':
-      os << '\\';
-      os << 'b';
+      out << "\\b";
       break;
     case '\f':
-      os << '\\';
-      os << 'f';
+      out << "\\f";
       break;
     case '\n':
-      os << '\\';
-      os << 'n';
+      out << "\\n";
       break;
     case '\r':
-      os << '\\';
-      os << 'r';
+      out << "\\r";
       break;
     case '\"':
-      os << '\\';
-      os << '"';
+      out << "\\\"";
       break;
     case '\t':
-      os << '\\';
-      os << 't';
+      out << "\\t";
       break;
     case '\\':
-      os << '\\';
-      os << '\\';
+      out << "\\\\";
       break;
     default:
-      if (*src <= 0x1F) {
-        std::ios::fmtflags f(os.flags());
-        os << std::hex << std::setw(4) << std::setfill('0')
-           << static_cast<int>(*src);
-        os.flags(f);
+      if ((unsigned char)unescaped.str[i] <= 0x1F) {
+        // TODO can this be done once at the beginning, or will it mess up << char?
+        std::ios::fmtflags f(out.flags());
+        out << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<int>(unescaped.str[i]);
+        out.flags(f);
       } else {
-        os << *src;
+        out << unescaped.str[i];
       }
     }
-    src++;
   }
+  return out;
 }
 
+} // namespace simdjson::internal
 
-// print len chars
-static inline void print_with_escapes(const unsigned char *src,
-                                      std::ostream &os, size_t len) {
-  const unsigned char *finalsrc = src + len;
-  while (src < finalsrc) {
-    switch (*src) {
-    case '\b':
-      os << '\\';
-      os << 'b';
-      break;
-    case '\f':
-      os << '\\';
-      os << 'f';
-      break;
-    case '\n':
-      os << '\\';
-      os << 'n';
-      break;
-    case '\r':
-      os << '\\';
-      os << 'r';
-      break;
-    case '\"':
-      os << '\\';
-      os << '"';
-      break;
-    case '\t':
-      os << '\\';
-      os << 't';
-      break;
-    case '\\':
-      os << '\\';
-      os << '\\';
-      break;
-    default:
-      if (*src <= 0x1F) {
-        std::ios::fmtflags f(os.flags());
-        os << std::hex << std::setw(4) << std::setfill('0')
-           << static_cast<int>(*src);
-        os.flags(f);
-      } else {
-        os << *src;
-      }
-    }
-    src++;
-  }
-}
-
-static inline void print_with_escapes(const char *src, std::ostream &os) {
-  print_with_escapes(reinterpret_cast<const unsigned char *>(src), os);
-}
-
-static inline void print_with_escapes(const char *src, std::ostream &os,
-                                      size_t len) {
-  print_with_escapes(reinterpret_cast<const unsigned char *>(src), os, len);
-}
-} // namespace simdjson
-
-#endif
-/* end file include/simdjson/jsonformatutils.h */
+#endif // SIMDJSON_INTERNAL_JSONFORMATUTILS_H
+/* end file include/simdjson/internal/jsonformatutils.h */
 
 namespace simdjson {
 
 template <size_t max_depth> class document_iterator {
 public:
-  document_iterator(const document::parser &parser);
+#if SIMDJSON_EXCEPTIONS
+  document_iterator(const document::parser &parser) noexcept(false);
+#endif
   document_iterator(const document &doc) noexcept;
   document_iterator(const document_iterator &o) noexcept;
   document_iterator &operator=(const document_iterator &o) noexcept;
 
   inline bool is_ok() const;
 
-  // useful for debuging purposes
+  // useful for debugging purposes
   inline size_t get_tape_location() const;
 
-  // useful for debuging purposes
+  // useful for debugging purposes
   inline size_t get_tape_length() const;
 
   // returns the current depth (start at 1 with 0 reserved for the fictitious
@@ -2831,7 +2891,7 @@ public:
   // within the string: get_string_length determines the true string length.
   inline const char *get_string() const {
       return reinterpret_cast<const char *>(
-          doc.string_buf.get() + (current_val & JSON_VALUE_MASK) + sizeof(uint32_t));
+          doc.string_buf.get() + (current_val & internal::JSON_VALUE_MASK) + sizeof(uint32_t));
   }
 
   // return the length of the string in bytes
@@ -2839,7 +2899,7 @@ public:
       uint32_t answer;
       memcpy(&answer,
           reinterpret_cast<const char *>(doc.string_buf.get() +
-                                          (current_val & JSON_VALUE_MASK)),
+                                          (current_val & internal::JSON_VALUE_MASK)),
           sizeof(uint32_t));
       return answer;
   }
@@ -2927,7 +2987,7 @@ public:
   // if not, we are still pointing at the array ([)
   inline bool move_to_index(uint32_t index);
 
-  // Moves the iterator to the value correspoding to the json pointer.
+  // Moves the iterator to the value corresponding to the json pointer.
   // Always search from the root of the document.
   // if successful, we are left pointing at the value,
   // if not, we are still pointing the same value we were pointing before the
@@ -2939,7 +2999,7 @@ public:
   // jsonpointer string ('pointer').
   bool move_to(const char *pointer, uint32_t length);
 
-  // Moves the iterator to the value correspoding to the json pointer.
+  // Moves the iterator to the value corresponding to the json pointer.
   // Always search from the root of the document.
   // if successful, we are left pointing at the value,
   // if not, we are still pointing the same value we were pointing before the
@@ -2953,7 +3013,7 @@ public:
   }
 
   private:
-  // Almost the same as move_to(), except it searchs from the current
+  // Almost the same as move_to(), except it searches from the current
   // position. The pointer's syntax is identical, though that case is not
   // handled by the rfc6901 standard. The '/' is still required at the
   // beginning. However, contrary to move_to(), the URI Fragment Identifier
@@ -3026,16 +3086,30 @@ public:
 } // namespace simdjson
 
 #endif // SIMDJSON_DOCUMENT_ITERATOR_H
-/* end file include/simdjson/jsonformatutils.h */
+/* end file include/simdjson/internal/jsonformatutils.h */
 
 #endif
-/* end file include/simdjson/jsonformatutils.h */
+/* end file include/simdjson/internal/jsonformatutils.h */
 /* begin file include/simdjson/jsonparser.h */
 // TODO Remove this -- deprecated API and files
 
 #ifndef SIMDJSON_JSONPARSER_H
 #define SIMDJSON_JSONPARSER_H
 
+/* begin file include/simdjson/parsedjson.h */
+// TODO Remove this -- deprecated API and files
+
+#ifndef SIMDJSON_PARSEDJSON_H
+#define SIMDJSON_PARSEDJSON_H
+
+
+namespace simdjson {
+
+using ParsedJson = document::parser;
+
+} // namespace simdjson
+#endif
+/* end file include/simdjson/parsedjson.h */
 /* begin file include/simdjson/jsonioutil.h */
 #ifndef SIMDJSON_JSONIOUTIL_H
 #define SIMDJSON_JSONIOUTIL_H
@@ -3050,24 +3124,17 @@ public:
 
 namespace simdjson {
 
-// load a file in memory...
-// get a corpus; pad out to cache line so we can always use SIMD
-// throws exceptions in case of failure
-// first element of the pair is a string (null terminated)
-// whereas the second element is the length.
-// caller is responsible to free (aligned_free((void*)result.data())))
-//
-// throws an exception if the file cannot be opened, use try/catch
-//      try {
-//        p = get_corpus(filename);
-//      } catch (const std::exception& e) {
-//        aligned_free((void*)p.data());
-//        std::cout << "Could not load the file " << filename << std::endl;
-//      }
-padded_string get_corpus(const std::string &filename);
+#if SIMDJSON_EXCEPTIONS
+
+inline padded_string get_corpus(const std::string &filename) {
+  return padded_string::load(filename);
+}
+
+#endif // SIMDJSON_EXCEPTIONS
+
 } // namespace simdjson
 
-#endif
+#endif // SIMDJSON_JSONIOUTIL_H
 /* end file include/simdjson/jsonioutil.h */
 
 namespace simdjson {
@@ -3077,7 +3144,7 @@ namespace simdjson {
 //
 
 inline int json_parse(const uint8_t *buf, size_t len, document::parser &parser, bool realloc_if_needed = true) noexcept {
-  error_code code = parser.parse(buf, len, realloc_if_needed).error;
+  error_code code = parser.parse(buf, len, realloc_if_needed).error();
   // The deprecated json_parse API is a signal that the user plans to *use* the error code / valid
   // bits in the parser instead of heeding the result code. The normal parser unsets those in
   // anticipation of making the error code ephemeral.
@@ -3098,11 +3165,6 @@ inline int json_parse(const padded_string &s, document::parser &parser) noexcept
 
 WARN_UNUSED static document::parser build_parsed_json(const uint8_t *buf, size_t len, bool realloc_if_needed = true) noexcept {
   document::parser parser;
-  if (!parser.allocate_capacity(len)) {
-    parser.valid = false;
-    parser.error = MEMALLOC;
-    return parser;
-  }
   json_parse(buf, len, parser, realloc_if_needed);
   return parser;
 }
@@ -3124,440 +3186,689 @@ document::parser build_parsed_json(const char *buf) noexcept = delete;
 
 #endif
 /* end file include/simdjson/jsonioutil.h */
+/* begin file include/simdjson/jsonstream.h */
+// TODO Remove this -- deprecated API and files
+
+#ifndef SIMDJSON_JSONSTREAM_H
+#define SIMDJSON_JSONSTREAM_H
+
+
+namespace simdjson {
+
+/**
+ * @deprecated use document::stream instead.
+ *
+ * The main motivation for this piece of software is to achieve maximum speed and offer
+ * good quality of life while parsing files containing multiple JSON documents.
+ *
+ * Since we want to offer flexibility and not restrict ourselves to a specific file
+ * format, we support any file that contains any valid JSON documents separated by one
+ * or more character that is considered a whitespace by the JSON spec.
+ * Namely: space, nothing, linefeed, carriage return, horizontal tab.
+ * Anything that is not whitespace will be parsed as a JSON document and could lead
+ * to failure.
+ *
+ * To offer maximum parsing speed, our implementation processes the data inside the
+ * buffer by batches and their size is defined by the parameter "batch_size".
+ * By loading data in batches, we can optimize the time spent allocating data in the
+ * parser and can also open the possibility of multi-threading.
+ * The batch_size must be at least as large as the biggest document in the file, but
+ * not too large in order to submerge the chached memory.  We found that 1MB is
+ * somewhat a sweet spot for now.  Eventually, this batch_size could be fully
+ * automated and be optimal at all times.
+ *
+ *  The template parameter (string_container) must
+ * support the data() and size() methods, returning a pointer
+ * to a char* and to the number of bytes respectively.
+ * The simdjson parser may read up to SIMDJSON_PADDING bytes beyond the end
+ * of the string, so if you do not use a padded_string container,
+ * you have the responsibility to overallocated. If you fail to
+ * do so, your software may crash if you cross a page boundary,
+ * and you should expect memory checkers to object.
+ * Most users should use a simdjson::padded_string.
+ */
+template <class string_container> class JsonStream {
+public:
+  /* Create a JsonStream object that can be used to parse sequentially the valid
+   * JSON documents found in the buffer "buf".
+   *
+   * The batch_size must be at least as large as the biggest document in the
+   * file, but
+   * not too large to submerge the cached memory.  We found that 1MB is
+   * somewhat a sweet spot for now.
+   *
+   * The user is expected to call the following json_parse method to parse the
+   * next
+   * valid JSON document found in the buffer.  This method can and is expected
+   * to be
+   * called in a loop.
+   *
+   * Various methods are offered to keep track of the status, like
+   * get_current_buffer_loc,
+   * get_n_parsed_docs, get_n_bytes_parsed, etc.
+   *
+   * */
+  JsonStream(const string_container &s, size_t _batch_size = 1000000) noexcept;
+
+  ~JsonStream() noexcept;
+
+  /* Parse the next document found in the buffer previously given to JsonStream.
+
+   * The content should be a valid JSON document encoded as UTF-8. If there is a
+   * UTF-8 BOM, the caller is responsible for omitting it, UTF-8 BOM are
+   * discouraged.
+   *
+   * You do NOT need to pre-allocate a parser.  This function takes care of
+   * pre-allocating a capacity defined by the batch_size defined when creating
+   the
+   * JsonStream object.
+   *
+   * The function returns simdjson::SUCCESS_AND_HAS_MORE (an integer = 1) in
+   case
+   * of success and indicates that the buffer still contains more data to be
+   parsed,
+   * meaning this function can be called again to return the next JSON document
+   * after this one.
+   *
+   * The function returns simdjson::SUCCESS (as integer = 0) in case of success
+   * and indicates that the buffer has successfully been parsed to the end.
+   * Every document it contained has been parsed without error.
+   *
+   * The function returns an error code from simdjson/simdjson.h in case of
+   failure
+   * such as simdjson::CAPACITY, simdjson::MEMALLOC, simdjson::DEPTH_ERROR and
+   so forth;
+   * the simdjson::error_message function converts these error codes into a
+   * string).
+   *
+   * You can also check validity by calling parser.is_valid(). The same parser
+   can
+   * and should be reused for the other documents in the buffer. */
+  int json_parse(document::parser &parser) noexcept;
+
+  /* Returns the location (index) of where the next document should be in the
+   * buffer.
+   * Can be used for debugging, it tells the user the position of the end of the
+   * last
+   * valid JSON document parsed*/
+  inline size_t get_current_buffer_loc() const noexcept { return stream ? stream->current_buffer_loc : 0; }
+
+  /* Returns the total amount of complete documents parsed by the JsonStream,
+   * in the current buffer, at the given time.*/
+  inline size_t get_n_parsed_docs() const noexcept { return stream ? stream->n_parsed_docs : 0; }
+
+  /* Returns the total amount of data (in bytes) parsed by the JsonStream,
+   * in the current buffer, at the given time.*/
+  inline size_t get_n_bytes_parsed() const noexcept { return stream ? stream->n_bytes_parsed : 0; }
+
+private:
+  const string_container &str;
+  const size_t batch_size;
+  document::stream *stream{nullptr};
+}; // end of class JsonStream
+
+} // end of namespace simdjson
+
+#endif // SIMDJSON_JSONSTREAM_H
+/* end file include/simdjson/jsonstream.h */
 
 // Inline functions
 /* begin file include/simdjson/inline/document.h */
 #ifndef SIMDJSON_INLINE_DOCUMENT_H
 #define SIMDJSON_INLINE_DOCUMENT_H
 
-
-// Inline implementations go in here if they aren't small enough to go in the class itself or if
-// there are complex header file dependencies that need to be broken by externalizing the
-// implementation.
+// Inline implementations go in here.
 
 #include <iostream>
+
 namespace simdjson {
 
 //
-// document::element_result<T> inline implementation
+// element_result inline implementation
 //
-template<typename T>
-inline document::element_result<T>::element_result(T _value) noexcept : value(_value), error{SUCCESS} {}
-template<typename T>
-inline document::element_result<T>::element_result(error_code _error) noexcept : value(), error{_error} {}
-template<>
-inline document::element_result<std::string_view>::operator std::string_view() const noexcept(false) {
-  if (error) { throw invalid_json(error); }
-  return value;
+really_inline document::element_result::element_result(element value) noexcept : simdjson_result<element>(value) {}
+really_inline document::element_result::element_result(error_code error) noexcept : simdjson_result<element>(error) {}
+inline simdjson_result<bool> document::element_result::is_null() const noexcept {
+  if (error()) { return error(); }
+  return first.is_null();
 }
-template<>
-inline document::element_result<const char *>::operator const char *() const noexcept(false) {
-  if (error) { throw invalid_json(error); }
-  return value;
+inline simdjson_result<bool> document::element_result::as_bool() const noexcept {
+  if (error()) { return error(); }
+  return first.as_bool();
 }
-template<>
-inline document::element_result<bool>::operator bool() const noexcept(false) {
-  if (error) { throw invalid_json(error); }
-  return value;
+inline simdjson_result<const char*> document::element_result::as_c_str() const noexcept {
+  if (error()) { return error(); }
+  return first.as_c_str();
 }
-template<>
-inline document::element_result<uint64_t>::operator uint64_t() const noexcept(false) {
-  if (error) { throw invalid_json(error); }
-  return value;
+inline simdjson_result<std::string_view> document::element_result::as_string() const noexcept {
+  if (error()) { return error(); }
+  return first.as_string();
 }
-template<>
-inline document::element_result<int64_t>::operator int64_t() const noexcept(false) {
-  if (error) { throw invalid_json(error); }
-  return value;
+inline simdjson_result<uint64_t> document::element_result::as_uint64_t() const noexcept {
+  if (error()) { return error(); }
+  return first.as_uint64_t();
 }
-template<>
-inline document::element_result<double>::operator double() const noexcept(false) {
-  if (error) { throw invalid_json(error); }
-  return value;
+inline simdjson_result<int64_t> document::element_result::as_int64_t() const noexcept {
+  if (error()) { return error(); }
+  return first.as_int64_t();
+}
+inline simdjson_result<double> document::element_result::as_double() const noexcept {
+  if (error()) { return error(); }
+  return first.as_double();
+}
+inline document::array_result document::element_result::as_array() const noexcept {
+  if (error()) { return error(); }
+  return first.as_array();
+}
+inline document::object_result document::element_result::as_object() const noexcept {
+  if (error()) { return error(); }
+  return first.as_object();
 }
 
-//
-// document::element_result<document::array> inline implementation
-//
-inline document::element_result<document::array>::element_result(document::array _value) noexcept : value(_value), error{SUCCESS} {}
-inline document::element_result<document::array>::element_result(error_code _error) noexcept : value(), error{_error} {}
-inline document::element_result<document::array>::operator document::array() const noexcept(false) {
-  if (error) { throw invalid_json(error); }
-  return value;
+inline document::element_result document::element_result::operator[](const std::string_view &key) const noexcept {
+  if (error()) { return *this; }
+  return first[key];
 }
-inline document::array::iterator document::element_result<document::array>::begin() const noexcept(false) {
-  if (error) { throw invalid_json(error); }
-  return value.begin();
-}
-inline document::array::iterator document::element_result<document::array>::end() const noexcept(false) {
-  if (error) { throw invalid_json(error); }
-  return value.end();
+inline document::element_result document::element_result::operator[](const char *key) const noexcept {
+  if (error()) { return *this; }
+  return first[key];
 }
 
-//
-// document::element_result<document::object> inline implementation
-//
-inline document::element_result<document::object>::element_result(document::object _value) noexcept : value(_value), error{SUCCESS} {}
-inline document::element_result<document::object>::element_result(error_code _error) noexcept : value(), error{_error} {}
-inline document::element_result<document::object>::operator document::object() const noexcept(false) {
-  if (error) { throw invalid_json(error); }
-  return value;
-}
-inline document::element_result<document::element> document::element_result<document::object>::operator[](const std::string_view &key) const noexcept {
-  if (error) { return error; }
-  return value[key];
-}
-inline document::element_result<document::element> document::element_result<document::object>::operator[](const char *key) const noexcept {
-  if (error) { return error; }
-  return value[key];
-}
-inline document::object::iterator document::element_result<document::object>::begin() const noexcept(false) {
-  if (error) { throw invalid_json(error); }
-  return value.begin();
-}
-inline document::object::iterator document::element_result<document::object>::end() const noexcept(false) {
-  if (error) { throw invalid_json(error); }
-  return value.end();
-}
+#if SIMDJSON_EXCEPTIONS
 
-//
-// document::element_result<document::element> inline implementation
-//
-inline document::element_result<document::element>::element_result(document::element _value) noexcept : value(_value), error{SUCCESS} {}
-inline document::element_result<document::element>::element_result(error_code _error) noexcept : value(), error{_error} {}
-inline document::element_result<bool> document::element_result<document::element>::is_null() const noexcept {
-  if (error) { return error; }
-  return value.is_null();
-}
-inline document::element_result<bool> document::element_result<document::element>::as_bool() const noexcept {
-  if (error) { return error; }
-  return value.as_bool();
-}
-inline document::element_result<const char*> document::element_result<document::element>::as_c_str() const noexcept {
-  if (error) { return error; }
-  return value.as_c_str();
-}
-inline document::element_result<std::string_view> document::element_result<document::element>::as_string() const noexcept {
-  if (error) { return error; }
-  return value.as_string();
-}
-inline document::element_result<uint64_t> document::element_result<document::element>::as_uint64_t() const noexcept {
-  if (error) { return error; }
-  return value.as_uint64_t();
-}
-inline document::element_result<int64_t> document::element_result<document::element>::as_int64_t() const noexcept {
-  if (error) { return error; }
-  return value.as_int64_t();
-}
-inline document::element_result<double> document::element_result<document::element>::as_double() const noexcept {
-  if (error) { return error; }
-  return value.as_double();
-}
-inline document::element_result<document::array> document::element_result<document::element>::as_array() const noexcept {
-  if (error) { return error; }
-  return value.as_array();
-}
-inline document::element_result<document::object> document::element_result<document::element>::as_object() const noexcept {
-  if (error) { return error; }
-  return value.as_object();
-}
-
-inline document::element_result<document::element>::operator bool() const noexcept(false) {
+inline document::element_result::operator bool() const noexcept(false) {
   return as_bool();
 }
-inline document::element_result<document::element>::operator const char *() const noexcept(false) {
+inline document::element_result::operator const char *() const noexcept(false) {
   return as_c_str();
 }
-inline document::element_result<document::element>::operator std::string_view() const noexcept(false) {
+inline document::element_result::operator std::string_view() const noexcept(false) {
   return as_string();
 }
-inline document::element_result<document::element>::operator uint64_t() const noexcept(false) {
+inline document::element_result::operator uint64_t() const noexcept(false) {
   return as_uint64_t();
 }
-inline document::element_result<document::element>::operator int64_t() const noexcept(false) {
+inline document::element_result::operator int64_t() const noexcept(false) {
   return as_int64_t();
 }
-inline document::element_result<document::element>::operator double() const noexcept(false) {
+inline document::element_result::operator double() const noexcept(false) {
   return as_double();
 }
-inline document::element_result<document::element>::operator document::array() const noexcept(false) {
+inline document::element_result::operator document::array() const noexcept(false) {
   return as_array();
 }
-inline document::element_result<document::element>::operator document::object() const noexcept(false) {
+inline document::element_result::operator document::object() const noexcept(false) {
   return as_object();
 }
-inline document::element_result<document::element> document::element_result<document::element>::operator[](const std::string_view &key) const noexcept {
-  if (error) { return *this; }
-  return value[key];
+
+#endif
+
+//
+// array_result inline implementation
+//
+really_inline document::array_result::array_result(array value) noexcept : simdjson_result<array>(value) {}
+really_inline document::array_result::array_result(error_code error) noexcept : simdjson_result<array>(error) {}
+
+#if SIMDJSON_EXCEPTIONS
+
+inline document::array::iterator document::array_result::begin() const noexcept(false) {
+  if (error()) { throw simdjson_error(error()); }
+  return first.begin();
 }
-inline document::element_result<document::element> document::element_result<document::element>::operator[](const char *key) const noexcept {
-  if (error) { return *this; }
-  return value[key];
+inline document::array::iterator document::array_result::end() const noexcept(false) {
+  if (error()) { throw simdjson_error(error()); }
+  return first.end();
 }
+
+#endif // SIMDJSON_EXCEPTIONS
+
+//
+// object_result inline implementation
+//
+really_inline document::object_result::object_result(object value) noexcept : simdjson_result<object>(value) {}
+really_inline document::object_result::object_result(error_code error) noexcept : simdjson_result<object>(error) {}
+
+inline document::element_result document::object_result::operator[](const std::string_view &key) const noexcept {
+  if (error()) { return error(); }
+  return first[key];
+}
+inline document::element_result document::object_result::operator[](const char *key) const noexcept {
+  if (error()) { return error(); }
+  return first[key];
+}
+
+#if SIMDJSON_EXCEPTIONS
+
+inline document::object::iterator document::object_result::begin() const noexcept(false) {
+  if (error()) { throw simdjson_error(error()); }
+  return first.begin();
+}
+inline document::object::iterator document::object_result::end() const noexcept(false) {
+  if (error()) { throw simdjson_error(error()); }
+  return first.end();
+}
+
+#endif // SIMDJSON_EXCEPTIONS
 
 //
 // document inline implementation
 //
 inline document::element document::root() const noexcept {
-  return document::element(this, 1);
+  return element(this, 1);
 }
-inline document::element_result<document::array> document::as_array() const noexcept {
+inline document::array_result document::as_array() const noexcept {
   return root().as_array();
 }
-inline document::element_result<document::object> document::as_object() const noexcept {
+inline document::object_result document::as_object() const noexcept {
   return root().as_object();
 }
-inline document::operator document::element() const noexcept {
+inline document::operator element() const noexcept {
   return root();
 }
+
+#if SIMDJSON_EXCEPTIONS
+
 inline document::operator document::array() const noexcept(false) {
   return root();
 }
 inline document::operator document::object() const noexcept(false) {
   return root();
 }
-inline document::element_result<document::element> document::operator[](const std::string_view &key) const noexcept {
+
+#endif
+
+inline document::element_result document::operator[](const std::string_view &key) const noexcept {
   return root()[key];
 }
-inline document::element_result<document::element> document::operator[](const char *key) const noexcept {
+inline document::element_result document::operator[](const char *key) const noexcept {
   return root()[key];
 }
 
-//
-// document::doc_ref_result inline implementation
-//
-inline document::doc_ref_result::doc_ref_result(document &_doc, error_code _error) noexcept : doc(_doc), error(_error) { }
-inline document::doc_ref_result::operator document&() noexcept(false) {
-  if (error) {
-    throw invalid_json(error);
-  }
-  return doc;
+inline document::doc_move_result document::load(const std::string &path) noexcept {
+  document::parser parser;
+  auto [doc, error] = parser.load(path);
+  return doc_move_result((document &&)doc, error);
 }
-inline const std::string &document::doc_ref_result::get_error_message() const noexcept {
-  return error_message(error);
+
+inline document::doc_move_result document::parse(const uint8_t *buf, size_t len, bool realloc_if_needed) noexcept {
+  document::parser parser;
+  auto [doc, error] = parser.parse(buf, len, realloc_if_needed);
+  return doc_move_result((document &&)doc, error);
+}
+really_inline document::doc_move_result document::parse(const char *buf, size_t len, bool realloc_if_needed) noexcept {
+  return parse((const uint8_t *)buf, len, realloc_if_needed);
+}
+really_inline document::doc_move_result document::parse(const std::string &s) noexcept {
+  return parse(s.data(), s.length(), s.capacity() - s.length() < SIMDJSON_PADDING);
+}
+really_inline document::doc_move_result document::parse(const padded_string &s) noexcept {
+  return parse(s.data(), s.length(), false);
+}
+
+WARN_UNUSED
+inline error_code document::set_capacity(size_t capacity) noexcept {
+  if (capacity == 0) {
+    string_buf.reset();
+    tape.reset();
+    return SUCCESS;
+  }
+
+  // a pathological input like "[[[[..." would generate len tape elements, so
+  // need a capacity of at least len + 1, but it is also possible to do
+  // worse with "[7,7,7,7,6,7,7,7,6,7,7,6,[7,7,7,7,6,7,7,7,6,7,7,6,7,7,7,7,7,7,6" 
+  //where len + 1 tape elements are
+  // generated, see issue https://github.com/lemire/simdjson/issues/345
+  size_t tape_capacity = ROUNDUP_N(capacity + 2, 64);
+  // a document with only zero-length strings... could have len/3 string
+  // and we would need len/3 * 5 bytes on the string buffer
+  size_t string_capacity = ROUNDUP_N(5 * capacity / 3 + 32, 64);
+  string_buf.reset( new (std::nothrow) uint8_t[string_capacity]);
+  tape.reset(new (std::nothrow) uint64_t[tape_capacity]);
+  return string_buf && tape ? SUCCESS : MEMALLOC;
+}
+
+inline bool document::dump_raw_tape(std::ostream &os) const noexcept {
+  uint32_t string_length;
+  size_t tape_idx = 0;
+  uint64_t tape_val = tape[tape_idx];
+  uint8_t type = (tape_val >> 56);
+  os << tape_idx << " : " << type;
+  tape_idx++;
+  size_t how_many = 0;
+  if (type == 'r') {
+    how_many = tape_val & internal::JSON_VALUE_MASK;
+  } else {
+    // Error: no starting root node?
+    return false;
+  }
+  os << "\t// pointing to " << how_many << " (right after last node)\n";
+  uint64_t payload;
+  for (; tape_idx < how_many; tape_idx++) {
+    os << tape_idx << " : ";
+    tape_val = tape[tape_idx];
+    payload = tape_val & internal::JSON_VALUE_MASK;
+    type = (tape_val >> 56);
+    switch (type) {
+    case '"': // we have a string
+      os << "string \"";
+      memcpy(&string_length, string_buf.get() + payload, sizeof(uint32_t));
+      os << internal::escape_json_string(std::string_view(
+        (const char *)(string_buf.get() + payload + sizeof(uint32_t)),
+        string_length
+      ));
+      os << '"';
+      os << '\n';
+      break;
+    case 'l': // we have a long int
+      if (tape_idx + 1 >= how_many) {
+        return false;
+      }
+      os << "integer " << static_cast<int64_t>(tape[++tape_idx]) << "\n";
+      break;
+    case 'u': // we have a long uint
+      if (tape_idx + 1 >= how_many) {
+        return false;
+      }
+      os << "unsigned integer " << tape[++tape_idx] << "\n";
+      break;
+    case 'd': // we have a double
+      os << "float ";
+      if (tape_idx + 1 >= how_many) {
+        return false;
+      }
+      double answer;
+      memcpy(&answer, &tape[++tape_idx], sizeof(answer));
+      os << answer << '\n';
+      break;
+    case 'n': // we have a null
+      os << "null\n";
+      break;
+    case 't': // we have a true
+      os << "true\n";
+      break;
+    case 'f': // we have a false
+      os << "false\n";
+      break;
+    case '{': // we have an object
+      os << "{\t// pointing to next tape location " << payload
+         << " (first node after the scope) \n";
+      break;
+    case '}': // we end an object
+      os << "}\t// pointing to previous tape location " << payload
+         << " (start of the scope) \n";
+      break;
+    case '[': // we start an array
+      os << "[\t// pointing to next tape location " << payload
+         << " (first node after the scope) \n";
+      break;
+    case ']': // we end an array
+      os << "]\t// pointing to previous tape location " << payload
+         << " (start of the scope) \n";
+      break;
+    case 'r': // we start and end with the root node
+      // should we be hitting the root node?
+      return false;
+    default:
+      return false;
+    }
+  }
+  tape_val = tape[tape_idx];
+  payload = tape_val & internal::JSON_VALUE_MASK;
+  type = (tape_val >> 56);
+  os << tape_idx << " : " << type << "\t// pointing to " << payload
+     << " (start root)\n";
+  return true;
 }
 
 //
-// document::doc_result inline implementation
+// doc_result inline implementation
 //
-inline document::doc_result::doc_result(document &&_doc, error_code _error) noexcept : doc(std::move(_doc)), error(_error) { }
-inline document::doc_result::doc_result(document &&_doc) noexcept : doc(std::move(_doc)), error(SUCCESS) { }
-inline document::doc_result::doc_result(error_code _error) noexcept : doc(), error(_error) { }
-inline document::doc_result::operator document() noexcept(false) {
-  if (error) {
-    throw invalid_json(error);
-  }
-  return std::move(doc);
+inline document::doc_result::doc_result(document &doc, error_code error) noexcept : simdjson_result<document&>(doc, error) { }
+
+inline document::array_result document::doc_result::as_array() const noexcept {
+  if (error()) { return error(); }
+  return first.root().as_array();
 }
-inline const std::string &document::doc_result::get_error_message() const noexcept {
-  return error_message(error);
+inline document::object_result document::doc_result::as_object() const noexcept {
+  if (error()) { return error(); }
+  return first.root().as_object();
+}
+
+inline document::element_result document::doc_result::operator[](const std::string_view &key) const noexcept {
+  if (error()) { return error(); }
+  return first[key];
+}
+inline document::element_result document::doc_result::operator[](const char *key) const noexcept {
+  if (error()) { return error(); }
+  return first[key];
+}
+
+//
+// doc_move_result inline implementation
+//
+inline document::doc_move_result::doc_move_result(document &&doc, error_code error) noexcept : simdjson_move_result<document>(std::move(doc), error) { }
+inline document::doc_move_result::doc_move_result(document &&doc) noexcept : simdjson_move_result<document>(std::move(doc)) { }
+inline document::doc_move_result::doc_move_result(error_code error) noexcept : simdjson_move_result<document>(error) { }
+
+inline document::array_result document::doc_move_result::as_array() const noexcept {
+  if (error()) { return error(); }
+  return first.root().as_array();
+}
+inline document::object_result document::doc_move_result::as_object() const noexcept {
+  if (error()) { return error(); }
+  return first.root().as_object();
+}
+
+inline document::element_result document::doc_move_result::operator[](const std::string_view &key) const noexcept {
+  if (error()) { return error(); }
+  return first[key];
+}
+inline document::element_result document::doc_move_result::operator[](const char *key) const noexcept {
+  if (error()) { return error(); }
+  return first[key];
 }
 
 //
 // document::parser inline implementation
 //
+really_inline document::parser::parser(size_t max_capacity, size_t max_depth) noexcept
+  : _max_capacity{max_capacity}, _max_depth{max_depth} {
+
+}
 inline bool document::parser::is_valid() const noexcept { return valid; }
 inline int document::parser::get_error_code() const noexcept { return error; }
-inline std::string document::parser::get_error_message() const noexcept { return error_message(error); }
+inline std::string document::parser::get_error_message() const noexcept { return error_message(int(error)); }
 inline bool document::parser::print_json(std::ostream &os) const noexcept {
-  return is_valid() ? doc.print_json(os) : false;
+  if (!is_valid()) { return false; }
+  os << minify(doc);
+  return true;
 }
 inline bool document::parser::dump_raw_tape(std::ostream &os) const noexcept {
   return is_valid() ? doc.dump_raw_tape(os) : false;
 }
+
+#if SIMDJSON_EXCEPTIONS
+
 inline const document &document::parser::get_document() const noexcept(false) {
   if (!is_valid()) {
-    throw invalid_json(error);
+    throw simdjson_error(error);
   }
   return doc;
 }
-inline document::doc_ref_result document::parser::parse(const uint8_t *buf, size_t len, bool realloc_if_needed) noexcept {
-  error_code code = init_parse(len);
-  if (code) { return document::doc_ref_result(doc, code); }
+
+#endif // SIMDJSON_EXCEPTIONS
+
+inline document::doc_result document::parser::load(const std::string &path) noexcept {
+  auto [json, _error] = padded_string::load(path);
+  if (_error) { return doc_result(doc, _error); }
+  return parse(json);
+}
+
+inline document::stream document::parser::load_many(const std::string &path, size_t batch_size) noexcept {
+  auto [json, _error] = padded_string::load(path);
+  return stream(*this, reinterpret_cast<const uint8_t*>(json.data()), json.length(), batch_size, _error);
+}
+
+inline document::doc_result document::parser::parse(const uint8_t *buf, size_t len, bool realloc_if_needed) noexcept {
+  error_code code = ensure_capacity(len);
+  if (code) { return doc_result(doc, code); }
 
   if (realloc_if_needed) {
     const uint8_t *tmp_buf = buf;
-    buf = (uint8_t *)allocate_padded_buffer(len);
+    buf = (uint8_t *)internal::allocate_padded_buffer(len);
     if (buf == nullptr)
-      return document::doc_ref_result(doc, MEMALLOC);
+      return doc_result(doc, MEMALLOC);
     memcpy((void *)buf, tmp_buf, len);
   }
 
   code = simdjson::active_implementation->parse(buf, len, *this);
 
-  // We're indicating validity via the doc_ref_result, so set the parse state back to invalid
+  // We're indicating validity via the doc_result, so set the parse state back to invalid
   valid = false;
   error = UNINITIALIZED;
   if (realloc_if_needed) {
     aligned_free((void *)buf); // must free before we exit
   }
-  return document::doc_ref_result(doc, code);
+  return doc_result(doc, code);
 }
-really_inline document::doc_ref_result document::parser::parse(const char *buf, size_t len, bool realloc_if_needed) noexcept {
+really_inline document::doc_result document::parser::parse(const char *buf, size_t len, bool realloc_if_needed) noexcept {
   return parse((const uint8_t *)buf, len, realloc_if_needed);
 }
-really_inline document::doc_ref_result document::parser::parse(const std::string &s) noexcept {
+really_inline document::doc_result document::parser::parse(const std::string &s) noexcept {
   return parse(s.data(), s.length(), s.capacity() - s.length() < SIMDJSON_PADDING);
 }
-really_inline document::doc_ref_result document::parser::parse(const padded_string &s) noexcept {
+really_inline document::doc_result document::parser::parse(const padded_string &s) noexcept {
   return parse(s.data(), s.length(), false);
 }
 
-inline document::doc_result document::parse(const uint8_t *buf, size_t len, bool realloc_if_needed) noexcept {
-  document::parser parser;
-  if (!parser.allocate_capacity(len)) {
-    return MEMALLOC;
-  }
-  auto [doc, error] = parser.parse(buf, len, realloc_if_needed);
-  return document::doc_result((document &&)doc, error);
+inline document::stream document::parser::parse_many(const uint8_t *buf, size_t len, size_t batch_size) noexcept {
+  return stream(*this, buf, len, batch_size);
 }
-really_inline document::doc_result document::parse(const char *buf, size_t len, bool realloc_if_needed) noexcept {
-    return parse((const uint8_t *)buf, len, realloc_if_needed);
+inline document::stream document::parser::parse_many(const char *buf, size_t len, size_t batch_size) noexcept {
+  return parse_many((const uint8_t *)buf, len, batch_size);
 }
-really_inline document::doc_result document::parse(const std::string &s) noexcept {
-    return parse(s.data(), s.length(), s.capacity() - s.length() < SIMDJSON_PADDING);
+inline document::stream document::parser::parse_many(const std::string &s, size_t batch_size) noexcept {
+  return parse_many(s.data(), s.length(), batch_size);
 }
-really_inline document::doc_result document::parse(const padded_string &s) noexcept {
-    return parse(s.data(), s.length(), false);
+inline document::stream document::parser::parse_many(const padded_string &s, size_t batch_size) noexcept {
+  return parse_many(s.data(), s.length(), batch_size);
 }
 
-//
-// Parser callbacks
-//
+really_inline size_t document::parser::capacity() const noexcept {
+  return _capacity;
+}
+really_inline size_t document::parser::max_capacity() const noexcept {
+  return _max_capacity;
+}
+really_inline size_t document::parser::max_depth() const noexcept {
+  return _max_depth;
+}
 
 WARN_UNUSED
-inline error_code document::parser::init_parse(size_t len) noexcept {
-  if (len > capacity()) {
-    return error = CAPACITY;
+inline error_code document::parser::set_capacity(size_t capacity) noexcept {
+  if (_capacity == capacity) {
+    return SUCCESS;
   }
-  // If the last doc was taken, we need to allocate a new one
-  if (!doc.tape) {
-    if (!doc.set_capacity(len)) {
-      return error = MEMALLOC;
-    }
+
+  // Set capacity to 0 until we finish, in case there's an error
+  _capacity = 0;
+
+  //
+  // Reallocate the document
+  //
+  error_code err = doc.set_capacity(capacity);
+  if (err) { return err; }
+
+  //
+  // Don't allocate 0 bytes, just return.
+  //
+  if (capacity == 0) {
+    structural_indexes.reset();
+    return SUCCESS;
   }
+
+  //
+  // Initialize stage 1 output
+  //
+  uint32_t max_structures = ROUNDUP_N(capacity, 64) + 2 + 7;
+  structural_indexes.reset( new (std::nothrow) uint32_t[max_structures]); // TODO realloc
+  if (!structural_indexes) {
+    return MEMALLOC;
+  }
+
+  _capacity = capacity;
   return SUCCESS;
 }
 
-inline void document::parser::init_stage2() noexcept {
-  current_string_buf_loc = doc.string_buf.get();
-  current_loc = 0;
-  valid = false;
-  error = UNINITIALIZED;
+really_inline void document::parser::set_max_capacity(size_t max_capacity) noexcept {
+  _max_capacity = max_capacity;
 }
 
-really_inline error_code document::parser::on_error(error_code new_error_code) noexcept {
-  error = new_error_code;
-  return new_error_code;
-}
-really_inline error_code document::parser::on_success(error_code success_code) noexcept {
-  error = success_code;
-  valid = true;
-  return success_code;
-}
-really_inline bool document::parser::on_start_document(uint32_t depth) noexcept {
-  containing_scope_offset[depth] = current_loc;
-  write_tape(0, tape_type::ROOT);
-  return true;
-}
-really_inline bool document::parser::on_start_object(uint32_t depth) noexcept {
-  containing_scope_offset[depth] = current_loc;
-  write_tape(0, tape_type::START_OBJECT);
-  return true;
-}
-really_inline bool document::parser::on_start_array(uint32_t depth) noexcept {
-  containing_scope_offset[depth] = current_loc;
-  write_tape(0, tape_type::START_ARRAY);
-  return true;
-}
-// TODO we're not checking this bool
-really_inline bool document::parser::on_end_document(uint32_t depth) noexcept {
-  // write our doc.tape location to the header scope
-  // The root scope gets written *at* the previous location.
-  annotate_previous_loc(containing_scope_offset[depth], current_loc);
-  write_tape(containing_scope_offset[depth], tape_type::ROOT);
-  return true;
-}
-really_inline bool document::parser::on_end_object(uint32_t depth) noexcept {
-  // write our doc.tape location to the header scope
-  write_tape(containing_scope_offset[depth], tape_type::END_OBJECT);
-  annotate_previous_loc(containing_scope_offset[depth], current_loc);
-  return true;
-}
-really_inline bool document::parser::on_end_array(uint32_t depth) noexcept {
-  // write our doc.tape location to the header scope
-  write_tape(containing_scope_offset[depth], tape_type::END_ARRAY);
-  annotate_previous_loc(containing_scope_offset[depth], current_loc);
-  return true;
+WARN_UNUSED inline error_code document::parser::set_max_depth(size_t max_depth) noexcept {
+  if (max_depth == _max_depth && ret_address) { return SUCCESS; }
+
+  _max_depth = 0;
+
+  if (max_depth == 0) {
+    ret_address.reset();
+    containing_scope_offset.reset();
+    return SUCCESS;
+  }
+
+  //
+  // Initialize stage 2 state
+  //
+  containing_scope_offset.reset(new (std::nothrow) uint32_t[max_depth]); // TODO realloc
+#ifdef SIMDJSON_USE_COMPUTED_GOTO
+  ret_address.reset(new (std::nothrow) void *[max_depth]);
+#else
+  ret_address.reset(new (std::nothrow) char[max_depth]);
+#endif
+
+  if (!ret_address || !containing_scope_offset) {
+    // Could not allocate memory
+    return MEMALLOC;
+  }
+
+  _max_depth = max_depth;
+  return SUCCESS;
 }
 
-really_inline bool document::parser::on_true_atom() noexcept {
-  write_tape(0, tape_type::TRUE_VALUE);
-  return true;
-}
-really_inline bool document::parser::on_false_atom() noexcept {
-  write_tape(0, tape_type::FALSE_VALUE);
-  return true;
-}
-really_inline bool document::parser::on_null_atom() noexcept {
-  write_tape(0, tape_type::NULL_VALUE);
-  return true;
+WARN_UNUSED inline bool document::parser::allocate_capacity(size_t capacity, size_t max_depth) noexcept {
+  return !set_capacity(capacity) && !set_max_depth(max_depth);
 }
 
-really_inline uint8_t *document::parser::on_start_string() noexcept {
-  /* we advance the point, accounting for the fact that we have a NULL
-    * termination         */
-  write_tape(current_string_buf_loc - doc.string_buf.get(), tape_type::STRING);
-  return current_string_buf_loc + sizeof(uint32_t);
-}
+inline error_code document::parser::ensure_capacity(size_t desired_capacity) noexcept {
+  // If we don't have enough capacity, (try to) automatically bump it.
+  if (unlikely(desired_capacity > capacity())) {
+    if (desired_capacity > max_capacity()) {
+      return error = CAPACITY;
+    }
 
-really_inline bool document::parser::on_end_string(uint8_t *dst) noexcept {
-  uint32_t str_length = dst - (current_string_buf_loc + sizeof(uint32_t));
-  // TODO check for overflow in case someone has a crazy string (>=4GB?)
-  // But only add the overflow check when the document itself exceeds 4GB
-  // Currently unneeded because we refuse to parse docs larger or equal to 4GB.
-  memcpy(current_string_buf_loc, &str_length, sizeof(uint32_t));
-  // NULL termination is still handy if you expect all your strings to
-  // be NULL terminated? It comes at a small cost
-  *dst = 0;
-  current_string_buf_loc = dst + 1;
-  return true;
-}
+    error = set_capacity(desired_capacity);
+    if (error) { return error; }
+  }
 
-really_inline bool document::parser::on_number_s64(int64_t value) noexcept {
-  write_tape(0, tape_type::INT64);
-  std::memcpy(&doc.tape[current_loc], &value, sizeof(value));
-  ++current_loc;
-  return true;
-}
-really_inline bool document::parser::on_number_u64(uint64_t value) noexcept {
-  write_tape(0, tape_type::UINT64);
-  doc.tape[current_loc++] = value;
-  return true;
-}
-really_inline bool document::parser::on_number_double(double value) noexcept {
-  write_tape(0, tape_type::DOUBLE);
-  static_assert(sizeof(value) == sizeof(doc.tape[current_loc]), "mismatch size");
-  memcpy(&doc.tape[current_loc++], &value, sizeof(double));
-  // doc.tape[doc.current_loc++] = *((uint64_t *)&d);
-  return true;
-}
+  // Allocate depth-based buffers if they aren't already.
+  error = set_max_depth(max_depth());
+  if (error) { return error; }
 
-really_inline void document::parser::write_tape(uint64_t val, document::tape_type t) noexcept {
-  doc.tape[current_loc++] = val | ((static_cast<uint64_t>(static_cast<char>(t))) << 56);
-}
+  // If the last doc was taken, we need to allocate a new one
+  if (!doc.tape) {
+    error = doc.set_capacity(desired_capacity);
+    if (error) { return error; }
+  }
 
-really_inline void document::parser::annotate_previous_loc(uint32_t saved_loc, uint64_t val) noexcept {
-  doc.tape[saved_loc] |= val;
+  return SUCCESS;
 }
 
 //
-// document::tape_ref inline implementation
+// tape_ref inline implementation
 //
-really_inline document::tape_ref::tape_ref() noexcept : doc{nullptr}, json_index{0} {}
-really_inline document::tape_ref::tape_ref(const document *_doc, size_t _json_index) noexcept : doc{_doc}, json_index{_json_index} {}
+really_inline internal::tape_ref::tape_ref() noexcept : doc{nullptr}, json_index{0} {}
+really_inline internal::tape_ref::tape_ref(const document *_doc, size_t _json_index) noexcept : doc{_doc}, json_index{_json_index} {}
 
-inline size_t document::tape_ref::after_element() const noexcept {
+inline size_t internal::tape_ref::after_element() const noexcept {
   switch (type()) {
     case tape_type::START_ARRAY:
     case tape_type::START_OBJECT:
@@ -3570,23 +3881,32 @@ inline size_t document::tape_ref::after_element() const noexcept {
       return json_index + 1;
   }
 }
-really_inline document::tape_type document::tape_ref::type() const noexcept {
+really_inline internal::tape_type internal::tape_ref::type() const noexcept {
   return static_cast<tape_type>(doc->tape[json_index] >> 56);
 }
-really_inline uint64_t document::tape_ref::tape_value() const noexcept {
-  return doc->tape[json_index] & JSON_VALUE_MASK;
+really_inline uint64_t internal::tape_ref::tape_value() const noexcept {
+  return doc->tape[json_index] & internal::JSON_VALUE_MASK;
 }
 template<typename T>
-really_inline T document::tape_ref::next_tape_value() const noexcept {
+really_inline T internal::tape_ref::next_tape_value() const noexcept {
   static_assert(sizeof(T) == sizeof(uint64_t));
   return *reinterpret_cast<const T*>(&doc->tape[json_index + 1]);
 }
+inline std::string_view internal::tape_ref::get_string_view() const noexcept {
+  size_t string_buf_index = tape_value();
+  uint32_t len;
+  memcpy(&len, &doc->string_buf[string_buf_index], sizeof(len));
+  return std::string_view(
+    reinterpret_cast<const char *>(&doc->string_buf[string_buf_index + sizeof(uint32_t)]),
+    len
+  );
+}
 
 //
-// document::array inline implementation
+// array inline implementation
 //
-really_inline document::array::array() noexcept : tape_ref() {}
-really_inline document::array::array(const document *_doc, size_t _json_index) noexcept : tape_ref(_doc, _json_index) {}
+really_inline document::array::array() noexcept : internal::tape_ref() {}
+really_inline document::array::array(const document *_doc, size_t _json_index) noexcept : internal::tape_ref(_doc, _json_index) {}
 inline document::array::iterator document::array::begin() const noexcept {
   return iterator(doc, json_index + 1);
 }
@@ -3598,7 +3918,7 @@ inline document::array::iterator document::array::end() const noexcept {
 //
 // document::array::iterator inline implementation
 //
-really_inline document::array::iterator::iterator(const document *_doc, size_t _json_index) noexcept : tape_ref(_doc, _json_index) { }
+really_inline document::array::iterator::iterator(const document *_doc, size_t _json_index) noexcept : internal::tape_ref(_doc, _json_index) { }
 inline document::element document::array::iterator::operator*() const noexcept {
   return element(doc, json_index);
 }
@@ -3610,17 +3930,17 @@ inline void document::array::iterator::operator++() noexcept {
 }
 
 //
-// document::object inline implementation
+// object inline implementation
 //
-really_inline document::object::object() noexcept : tape_ref() {}
-really_inline document::object::object(const document *_doc, size_t _json_index) noexcept : tape_ref(_doc, _json_index) { };
+really_inline document::object::object() noexcept : internal::tape_ref() {}
+really_inline document::object::object(const document *_doc, size_t _json_index) noexcept : internal::tape_ref(_doc, _json_index) { };
 inline document::object::iterator document::object::begin() const noexcept {
   return iterator(doc, json_index + 1);
 }
 inline document::object::iterator document::object::end() const noexcept {
   return iterator(doc, after_element() - 1);
 }
-inline document::element_result<document::element> document::object::operator[](const std::string_view &key) const noexcept {
+inline document::element_result document::object::operator[](const std::string_view &key) const noexcept {
   iterator end_field = end();
   for (iterator field = begin(); field != end_field; ++field) {
     if (key == field.key()) {
@@ -3629,7 +3949,7 @@ inline document::element_result<document::element> document::object::operator[](
   }
   return NO_SUCH_FIELD;
 }
-inline document::element_result<document::element> document::object::operator[](const char *key) const noexcept {
+inline document::element_result document::object::operator[](const char *key) const noexcept {
   iterator end_field = end();
   for (iterator field = begin(); field != end_field; ++field) {
     if (!strcmp(key, field.key_c_str())) {
@@ -3642,7 +3962,7 @@ inline document::element_result<document::element> document::object::operator[](
 //
 // document::object::iterator inline implementation
 //
-really_inline document::object::iterator::iterator(const document *_doc, size_t _json_index) noexcept : tape_ref(_doc, _json_index) { }
+really_inline document::object::iterator::iterator(const document *_doc, size_t _json_index) noexcept : internal::tape_ref(_doc, _json_index) { }
 inline const document::key_value_pair document::object::iterator::operator*() const noexcept {
   return key_value_pair(key(), value());
 }
@@ -3672,35 +3992,39 @@ inline document::element document::object::iterator::value() const noexcept {
 //
 // document::key_value_pair inline implementation
 //
-inline document::key_value_pair::key_value_pair(std::string_view _key, document::element _value) noexcept :
+inline document::key_value_pair::key_value_pair(std::string_view _key, element _value) noexcept :
   key(_key), value(_value) {}
 
 //
-// document::element inline implementation
+// element inline implementation
 //
-really_inline document::element::element() noexcept : tape_ref() {}
-really_inline document::element::element(const document *_doc, size_t _json_index) noexcept : tape_ref(_doc, _json_index) { }
+really_inline document::element::element() noexcept : internal::tape_ref() {}
+really_inline document::element::element(const document *_doc, size_t _json_index) noexcept : internal::tape_ref(_doc, _json_index) { }
+
 really_inline bool document::element::is_null() const noexcept {
-  return type() == tape_type::NULL_VALUE;
+  return type() == internal::tape_type::NULL_VALUE;
 }
 really_inline bool document::element::is_bool() const noexcept {
-  return type() == tape_type::TRUE_VALUE || type() == tape_type::FALSE_VALUE;
+  return type() == internal::tape_type::TRUE_VALUE || type() == internal::tape_type::FALSE_VALUE;
 }
 really_inline bool document::element::is_number() const noexcept {
-  return type() == tape_type::UINT64 || type() == tape_type::INT64 || type() == tape_type::DOUBLE;
+  return type() == internal::tape_type::UINT64 || type() == internal::tape_type::INT64 || type() == internal::tape_type::DOUBLE;
 }
 really_inline bool document::element::is_integer() const noexcept {
-  return type() == tape_type::UINT64 || type() == tape_type::INT64;
+  return type() == internal::tape_type::UINT64 || type() == internal::tape_type::INT64;
 }
 really_inline bool document::element::is_string() const noexcept {
-  return type() == tape_type::STRING;
+  return type() == internal::tape_type::STRING;
 }
 really_inline bool document::element::is_array() const noexcept {
-  return type() == tape_type::START_ARRAY;
+  return type() == internal::tape_type::START_ARRAY;
 }
 really_inline bool document::element::is_object() const noexcept {
-  return type() == tape_type::START_OBJECT;
+  return type() == internal::tape_type::START_OBJECT;
 }
+
+#if SIMDJSON_EXCEPTIONS
+
 inline document::element::operator bool() const noexcept(false) { return as_bool(); }
 inline document::element::operator const char*() const noexcept(false) { return as_c_str(); }
 inline document::element::operator std::string_view() const noexcept(false) { return as_string(); }
@@ -3709,19 +4033,22 @@ inline document::element::operator int64_t() const noexcept(false) { return as_i
 inline document::element::operator double() const noexcept(false) { return as_double(); }
 inline document::element::operator document::array() const noexcept(false) { return as_array(); }
 inline document::element::operator document::object() const noexcept(false) { return as_object(); }
-inline document::element_result<bool> document::element::as_bool() const noexcept {
+
+#endif
+
+inline simdjson_result<bool> document::element::as_bool() const noexcept {
   switch (type()) {
-    case tape_type::TRUE_VALUE:
+    case internal::tape_type::TRUE_VALUE:
       return true;
-    case tape_type::FALSE_VALUE:
+    case internal::tape_type::FALSE_VALUE:
       return false;
     default:
       return INCORRECT_TYPE;
   }
 }
-inline document::element_result<const char *> document::element::as_c_str() const noexcept {
+inline simdjson_result<const char *> document::element::as_c_str() const noexcept {
   switch (type()) {
-    case tape_type::STRING: {
+    case internal::tape_type::STRING: {
       size_t string_buf_index = tape_value();
       return reinterpret_cast<const char *>(&doc->string_buf[string_buf_index + sizeof(uint32_t)]);
     }
@@ -3729,26 +4056,19 @@ inline document::element_result<const char *> document::element::as_c_str() cons
       return INCORRECT_TYPE;
   }
 }
-inline document::element_result<std::string_view> document::element::as_string() const noexcept {
+inline simdjson_result<std::string_view> document::element::as_string() const noexcept {
   switch (type()) {
-    case tape_type::STRING: {
-      size_t string_buf_index = tape_value();
-      uint32_t len;
-      memcpy(&len, &doc->string_buf[string_buf_index], sizeof(len));
-      return std::string_view(
-        reinterpret_cast<const char *>(&doc->string_buf[string_buf_index + sizeof(uint32_t)]),
-        len
-      );
-    }
+    case internal::tape_type::STRING:
+      return get_string_view();
     default:
       return INCORRECT_TYPE;
   }
 }
-inline document::element_result<uint64_t> document::element::as_uint64_t() const noexcept {
+inline simdjson_result<uint64_t> document::element::as_uint64_t() const noexcept {
   switch (type()) {
-    case tape_type::UINT64:
+    case internal::tape_type::UINT64:
       return next_tape_value<uint64_t>();
-    case tape_type::INT64: {
+    case internal::tape_type::INT64: {
       int64_t result = next_tape_value<int64_t>();
       if (result < 0) {
         return NUMBER_OUT_OF_RANGE;
@@ -3759,9 +4079,9 @@ inline document::element_result<uint64_t> document::element::as_uint64_t() const
       return INCORRECT_TYPE;
   }
 }
-inline document::element_result<int64_t> document::element::as_int64_t() const noexcept {
+inline simdjson_result<int64_t> document::element::as_int64_t() const noexcept {
   switch (type()) {
-    case tape_type::UINT64: {
+    case internal::tape_type::UINT64: {
       uint64_t result = next_tape_value<uint64_t>();
       // Wrapping max in parens to handle Windows issue: https://stackoverflow.com/questions/11544073/how-do-i-deal-with-the-max-macro-in-windows-h-colliding-with-max-in-std
       if (result > (std::numeric_limits<uint64_t>::max)()) {
@@ -3769,18 +4089,17 @@ inline document::element_result<int64_t> document::element::as_int64_t() const n
       }
       return static_cast<int64_t>(result);
     }
-    case tape_type::INT64:
+    case internal::tape_type::INT64:
       return next_tape_value<int64_t>();
     default:
-    std::cout << "Incorrect " << json_index << " = " << char(type()) << std::endl;
       return INCORRECT_TYPE;
   }
 }
-inline document::element_result<double> document::element::as_double() const noexcept {
+inline simdjson_result<double> document::element::as_double() const noexcept {
   switch (type()) {
-    case tape_type::UINT64:
+    case internal::tape_type::UINT64:
       return next_tape_value<uint64_t>();
-    case tape_type::INT64: {
+    case internal::tape_type::INT64: {
       return next_tape_value<int64_t>();
       int64_t result = tape_value();
       if (result < 0) {
@@ -3788,38 +4107,230 @@ inline document::element_result<double> document::element::as_double() const noe
       }
       return result;
     }
-    case tape_type::DOUBLE:
+    case internal::tape_type::DOUBLE:
       return next_tape_value<double>();
     default:
       return INCORRECT_TYPE;
   }
 }
-inline document::element_result<document::array> document::element::as_array() const noexcept {
+inline document::array_result document::element::as_array() const noexcept {
   switch (type()) {
-    case tape_type::START_ARRAY:
+    case internal::tape_type::START_ARRAY:
       return array(doc, json_index);
     default:
       return INCORRECT_TYPE;
   }
 }
-inline document::element_result<document::object> document::element::as_object() const noexcept {
+inline document::object_result document::element::as_object() const noexcept {
   switch (type()) {
-    case tape_type::START_OBJECT:
+    case internal::tape_type::START_OBJECT:
       return object(doc, json_index);
     default:
       return INCORRECT_TYPE;
   }
 }
-inline document::element_result<document::element> document::element::operator[](const std::string_view &key) const noexcept {
+inline document::element_result document::element::operator[](const std::string_view &key) const noexcept {
   auto [obj, error] = as_object();
   if (error) { return error; }
   return obj[key];
 }
-inline document::element_result<document::element> document::element::operator[](const char *key) const noexcept {
+inline document::element_result document::element::operator[](const char *key) const noexcept {
   auto [obj, error] = as_object();
   if (error) { return error; }
   return obj[key];
 }
+
+//
+// minify inline implementation
+//
+
+template<>
+inline std::ostream& minify<document>::print(std::ostream& out) {
+  return out << minify<document::element>(value.root());
+}
+template<>
+inline std::ostream& minify<document::element>::print(std::ostream& out) {
+  using tape_type=internal::tape_type;
+  size_t depth = 0;
+  constexpr size_t MAX_DEPTH = 16;
+  bool is_object[MAX_DEPTH];
+  is_object[0] = false;
+  bool after_value = false;
+
+  internal::tape_ref iter(value.doc, value.json_index);
+  do {
+    // print commas after each value
+    if (after_value) {
+      out << ",";
+    }
+    // If we are in an object, print the next key and :, and skip to the next value.
+    if (is_object[depth]) {
+      out << '"' << internal::escape_json_string(iter.get_string_view()) << "\":";
+      iter.json_index++;
+    }
+    switch (iter.type()) {
+
+    // Arrays
+    case tape_type::START_ARRAY: {
+      // If we're too deep, we need to recurse to go deeper.
+      depth++;
+      if (unlikely(depth >= MAX_DEPTH)) {
+        out << minify<document::array>(document::array(iter.doc, iter.json_index));
+        iter.json_index = iter.tape_value() - 1; // Jump to the ]
+        depth--;
+        break;
+      }
+
+      // Output start [
+      out << '[';
+      iter.json_index++;
+
+      // Handle empty [] (we don't want to come back around and print commas)
+      if (iter.type() == tape_type::END_ARRAY) {
+        out << ']';
+        depth--;
+        break;
+      }
+
+      is_object[depth] = false;
+      after_value = false;
+      continue;
+    }
+
+    // Objects
+    case tape_type::START_OBJECT: {
+      // If we're too deep, we need to recurse to go deeper.
+      depth++;
+      if (unlikely(depth >= MAX_DEPTH)) {
+        out << minify<document::object>(document::object(iter.doc, iter.json_index));
+        iter.json_index = iter.tape_value() - 1; // Jump to the }
+        depth--;
+        break;
+      }
+
+      // Output start {
+      out << '{';
+      iter.json_index++;
+
+      // Handle empty {} (we don't want to come back around and print commas)
+      if (iter.type() == tape_type::END_OBJECT) {
+        out << '}';
+        depth--;
+        break;
+      }
+
+      is_object[depth] = true;
+      after_value = false;
+      continue;
+    }
+
+    // Scalars
+    case tape_type::STRING:
+      out << '"' << internal::escape_json_string(iter.get_string_view()) << '"';
+      break;
+    case tape_type::INT64:
+      out << iter.next_tape_value<int64_t>();
+      iter.json_index++; // numbers take up 2 spots, so we need to increment extra
+      break;
+    case tape_type::UINT64:
+      out << iter.next_tape_value<uint64_t>();
+      iter.json_index++; // numbers take up 2 spots, so we need to increment extra
+      break;
+    case tape_type::DOUBLE:
+      out << iter.next_tape_value<double>();
+      iter.json_index++; // numbers take up 2 spots, so we need to increment extra
+      break;
+    case tape_type::TRUE_VALUE:
+      out << "true";
+      break;
+    case tape_type::FALSE_VALUE:
+      out << "false";
+      break;
+    case tape_type::NULL_VALUE:
+      out << "null";
+      break;
+
+    // These are impossible
+    case tape_type::END_ARRAY:
+    case tape_type::END_OBJECT:
+    case tape_type::ROOT:
+      abort();
+    }
+    iter.json_index++;
+    after_value = true;
+
+    // Handle multiple ends in a row
+    while (depth != 0 && (iter.type() == tape_type::END_ARRAY || iter.type() == tape_type::END_OBJECT)) {
+      out << char(iter.type());
+      depth--;
+      iter.json_index++;
+    }
+
+    // Stop when we're at depth 0
+  } while (depth != 0);
+
+  return out;
+}
+template<>
+inline std::ostream& minify<document::object>::print(std::ostream& out) {
+  out << '{';
+  auto pair = value.begin();
+  auto end = value.end();
+  if (pair != end) {
+    out << minify<document::key_value_pair>(*pair);
+    for (++pair; pair != end; ++pair) {
+      out << "," << minify<document::key_value_pair>(*pair);
+    }
+  }
+  return out << '}';
+}
+template<>
+inline std::ostream& minify<document::array>::print(std::ostream& out) {
+  out << '[';
+  auto element = value.begin();
+  auto end = value.end();
+  if (element != end) {
+    out << minify<document::element>(*element);
+    for (++element; element != end; ++element) {
+      out << "," << minify<document::element>(*element);
+    }
+  }
+  return out << ']';
+}
+template<>
+inline std::ostream& minify<document::key_value_pair>::print(std::ostream& out) {
+  return out << '"' << internal::escape_json_string(value.key) << "\":" << value.value;
+}
+
+#if SIMDJSON_EXCEPTIONS
+
+template<>
+inline std::ostream& minify<document::doc_move_result>::print(std::ostream& out) {
+  if (value.error()) { throw simdjson_error(value.error()); }
+  return out << minify<document>(value.first);
+}
+template<>
+inline std::ostream& minify<document::doc_result>::print(std::ostream& out) {
+  if (value.error()) { throw simdjson_error(value.error()); }
+  return out << minify<document>(value.first);
+}
+template<>
+inline std::ostream& minify<document::element_result>::print(std::ostream& out) {
+  if (value.error()) { throw simdjson_error(value.error()); }
+  return out << minify<document::element>(value.first);
+}
+template<>
+inline std::ostream& minify<document::array_result>::print(std::ostream& out) {
+  if (value.error()) { throw simdjson_error(value.error()); }
+  return out << minify<document::array>(value.first);
+}
+template<>
+inline std::ostream& minify<document::object_result>::print(std::ostream& out) {
+  if (value.error()) { throw simdjson_error(value.error()); }
+  return out << minify<document::object>(value.first);
+}
+
+#endif
 
 } // namespace simdjson
 
@@ -3839,13 +4350,13 @@ WARN_UNUSED bool document_iterator<max_depth>::is_ok() const {
   return location < tape_length;
 }
 
-// useful for debuging purposes
+// useful for debugging purposes
 template <size_t max_depth>
 size_t document_iterator<max_depth>::get_tape_location() const {
   return location;
 }
 
-// useful for debuging purposes
+// useful for debugging purposes
 template <size_t max_depth>
 size_t document_iterator<max_depth>::get_tape_length() const {
   return tape_length;
@@ -3977,7 +4488,7 @@ template <size_t max_depth> bool document_iterator<max_depth>::prev() {
     oldnpos = npos;
     if ((current_type == '[') || (current_type == '{')) {
       // we need to jump
-      npos = (current_val & JSON_VALUE_MASK);
+      npos = (current_val & internal::JSON_VALUE_MASK);
     } else {
       npos = npos + ((current_type == 'd' || current_type == 'l') ? 2 : 1);
     }
@@ -4006,7 +4517,7 @@ template <size_t max_depth> bool document_iterator<max_depth>::down() {
     return false;
   }
   if ((current_type == '[') || (current_type == '{')) {
-    size_t npos = (current_val & JSON_VALUE_MASK);
+    size_t npos = (current_val & internal::JSON_VALUE_MASK);
     if (npos == location + 2) {
       return false; // we have an empty scope
     }
@@ -4033,7 +4544,7 @@ template <size_t max_depth> bool document_iterator<max_depth>::next() {
   size_t npos;
   if ((current_type == '[') || (current_type == '{')) {
     // we need to jump
-    npos = (current_val & JSON_VALUE_MASK);
+    npos = (current_val & internal::JSON_VALUE_MASK);
   } else {
     npos = location + (is_number() ? 2 : 1);
   }
@@ -4055,7 +4566,7 @@ document_iterator<max_depth>::document_iterator(const document &doc_) noexcept
   current_val = doc.tape[location++];
   current_type = (current_val >> 56);
   depth_index[0].scope_type = current_type;
-  tape_length = current_val & JSON_VALUE_MASK;
+  tape_length = current_val & internal::JSON_VALUE_MASK;
   if (location < tape_length) {
     // If we make it here, then depth_capacity must >=2, but the compiler
     // may not know this.
@@ -4068,9 +4579,13 @@ document_iterator<max_depth>::document_iterator(const document &doc_) noexcept
   }
 }
 
+#if SIMDJSON_EXCEPTIONS
+
 template <size_t max_depth>
-document_iterator<max_depth>::document_iterator(const document::parser &parser)
+document_iterator<max_depth>::document_iterator(const document::parser &parser) noexcept(false)
     : document_iterator(parser.get_document()) {}
+
+#endif
 
 template <size_t max_depth>
 document_iterator<max_depth>::document_iterator(
@@ -4103,7 +4618,7 @@ bool document_iterator<max_depth>::print(std::ostream &os, bool escape_strings) 
   case '"': // we have a string
     os << '"';
     if (escape_strings) {
-      print_with_escapes(get_string(), os, get_string_length());
+      os << internal::escape_json_string(std::string_view(get_string(), get_string_length()));
     } else {
       // was: os << get_string();, but given that we can include null chars, we
       // have to do something crazier:
@@ -4151,7 +4666,9 @@ bool document_iterator<max_depth>::move_to(const char *pointer,
     uint32_t new_length = 0;
     for (uint32_t i = 1; i < length; i++) {
       if (pointer[i] == '%' && pointer[i + 1] == 'x') {
+#if __cpp_exceptions
         try {
+#endif
           int fragment =
               std::stoi(std::string(&pointer[i + 2], 2), nullptr, 16);
           if (fragment == '\\' || fragment == '"' || (fragment <= 0x1F)) {
@@ -4161,10 +4678,12 @@ bool document_iterator<max_depth>::move_to(const char *pointer,
           }
           new_pointer[new_length] = fragment;
           i += 3;
+#if __cpp_exceptions
         } catch (std::invalid_argument &) {
           delete[] new_pointer;
           return false; // the fragment is invalid
         }
+#endif
       } else {
         new_pointer[new_length] = pointer[i];
       }
@@ -4283,7 +4802,7 @@ bool document_iterator<max_depth>::relative_move_to(const char *pointer,
         size_t npos;
         if ((current_type == '[') || (current_type == '{')) {
           // we need to jump
-          npos = (current_val & JSON_VALUE_MASK);
+          npos = (current_val & internal::JSON_VALUE_MASK);
         } else {
           npos =
               location + ((current_type == 'd' || current_type == 'l') ? 2 : 1);
@@ -4317,6 +4836,515 @@ bool document_iterator<max_depth>::relative_move_to(const char *pointer,
 
 #endif // SIMDJSON_INLINE_DOCUMENT_ITERATOR_H
 /* end file include/simdjson/inline/document_iterator.h */
+/* begin file include/simdjson/inline/document_stream.h */
+#ifndef SIMDJSON_INLINE_DOCUMENT_STREAM_H
+#define SIMDJSON_INLINE_DOCUMENT_STREAM_H
+
+#include <algorithm>
+#include <limits>
+#include <stdexcept>
+#include <thread>
+
+namespace simdjson::internal {
+
+/**
+ * This algorithm is used to quickly identify the buffer position of
+ * the last JSON document inside the current batch.
+ *
+ * It does its work by finding the last pair of structural characters
+ * that represent the end followed by the start of a document.
+ *
+ * Simply put, we iterate over the structural characters, starting from
+ * the end. We consider that we found the end of a JSON document when the
+ * first element of the pair is NOT one of these characters: '{' '[' ';' ','
+ * and when the second element is NOT one of these characters: '}' '}' ';' ','.
+ *
+ * This simple comparison works most of the time, but it does not cover cases
+ * where the batch's structural indexes contain a perfect amount of documents.
+ * In such a case, we do not have access to the structural index which follows
+ * the last document, therefore, we do not have access to the second element in
+ * the pair, and means that we cannot identify the last document. To fix this
+ * issue, we keep a count of the open and closed curly/square braces we found
+ * while searching for the pair. When we find a pair AND the count of open and
+ * closed curly/square braces is the same, we know that we just passed a
+ * complete
+ * document, therefore the last json buffer location is the end of the batch
+ * */
+inline size_t find_last_json_buf_idx(const uint8_t *buf, size_t size, const document::parser &parser) {
+  // this function can be generally useful
+  if (parser.n_structural_indexes == 0)
+    return 0;
+  auto last_i = parser.n_structural_indexes - 1;
+  if (parser.structural_indexes[last_i] == size) {
+    if (last_i == 0)
+      return 0;
+    last_i = parser.n_structural_indexes - 2;
+  }
+  auto arr_cnt = 0;
+  auto obj_cnt = 0;
+  for (auto i = last_i; i > 0; i--) {
+    auto idxb = parser.structural_indexes[i];
+    switch (buf[idxb]) {
+    case ':':
+    case ',':
+      continue;
+    case '}':
+      obj_cnt--;
+      continue;
+    case ']':
+      arr_cnt--;
+      continue;
+    case '{':
+      obj_cnt++;
+      break;
+    case '[':
+      arr_cnt++;
+      break;
+    }
+    auto idxa = parser.structural_indexes[i - 1];
+    switch (buf[idxa]) {
+    case '{':
+    case '[':
+    case ':':
+    case ',':
+      continue;
+    }
+    if (!arr_cnt && !obj_cnt) {
+      return last_i + 1;
+    }
+    return i;
+  }
+  return 0;
+}
+
+// returns true if the provided byte value is an ASCII character
+static inline bool is_ascii(char c) {
+  return ((unsigned char)c) <= 127;
+}
+
+// if the string ends with  UTF-8 values, backtrack 
+// up to the first ASCII character. May return 0.
+static inline size_t trimmed_length_safe_utf8(const char * c, size_t len) {
+  while ((len > 0) and (not is_ascii(c[len - 1]))) {
+    len--;
+  }
+  return len;
+}
+
+} // namespace simdjson::internal
+
+namespace simdjson {
+
+really_inline document::stream::stream(
+  document::parser &_parser,
+  const uint8_t *buf,
+  size_t len,
+  size_t batch_size,
+  error_code _error
+) noexcept : parser{_parser}, _buf{buf}, _len{len}, _batch_size(batch_size), error{_error} {
+  if (!error) { error = json_parse(); }
+}
+
+inline document::stream::~stream() noexcept {
+#ifdef SIMDJSON_THREADS_ENABLED
+  if (stage_1_thread.joinable()) {
+    stage_1_thread.join();
+  }
+#endif
+}
+
+really_inline document::stream::iterator document::stream::begin() noexcept {
+  return iterator(*this, false);
+}
+
+really_inline document::stream::iterator document::stream::end() noexcept {
+  return iterator(*this, true);
+}
+
+really_inline document::stream::iterator::iterator(stream& stream, bool _is_end) noexcept
+  : _stream{stream}, finished{_is_end} {
+}
+
+really_inline document::doc_result document::stream::iterator::operator*() noexcept {
+  return doc_result(_stream.parser.doc, _stream.error == SUCCESS_AND_HAS_MORE ? SUCCESS : _stream.error);
+}
+
+really_inline document::stream::iterator& document::stream::iterator::operator++() noexcept {
+  if (_stream.error == SUCCESS_AND_HAS_MORE) {
+    _stream.error = _stream.json_parse();
+  } else {
+    finished = true;
+  }
+  return *this;
+}
+
+really_inline bool document::stream::iterator::operator!=(const document::stream::iterator &other) const noexcept {
+  return finished != other.finished;
+}
+
+#ifdef SIMDJSON_THREADS_ENABLED
+
+// threaded version of json_parse
+// todo: simplify this code further
+inline error_code document::stream::json_parse() noexcept {
+  error = parser.ensure_capacity(_batch_size);
+  if (error) { return error; }
+  error = parser_thread.ensure_capacity(_batch_size);
+  if (error) { return error; }
+
+  if (unlikely(load_next_batch)) {
+    // First time loading
+    if (!stage_1_thread.joinable()) {
+      _batch_size = (std::min)(_batch_size, remaining());
+      _batch_size = internal::trimmed_length_safe_utf8((const char *)buf(), _batch_size);
+      if (_batch_size == 0) {
+        return simdjson::UTF8_ERROR;
+      }
+      auto stage1_is_ok = error_code(simdjson::active_implementation->stage1(buf(), _batch_size, parser, true));
+      if (stage1_is_ok != simdjson::SUCCESS) {
+        return stage1_is_ok;
+      }
+      size_t last_index = internal::find_last_json_buf_idx(buf(), _batch_size, parser);
+      if (last_index == 0) {
+        if (parser.n_structural_indexes == 0) {
+          return simdjson::EMPTY;
+        }
+      } else {
+        parser.n_structural_indexes = last_index + 1;
+      }
+    }
+    // the second thread is running or done.
+    else {
+      stage_1_thread.join();
+      if (stage1_is_ok_thread != simdjson::SUCCESS) {
+        return stage1_is_ok_thread;
+      }
+      std::swap(parser.structural_indexes, parser_thread.structural_indexes);
+      parser.n_structural_indexes = parser_thread.n_structural_indexes;
+      advance(last_json_buffer_loc);
+      n_bytes_parsed += last_json_buffer_loc;
+    }
+    // let us decide whether we will start a new thread
+    if (remaining() - _batch_size > 0) {
+      last_json_buffer_loc =
+          parser.structural_indexes[internal::find_last_json_buf_idx(buf(), _batch_size, parser)];
+      _batch_size = (std::min)(_batch_size, remaining() - last_json_buffer_loc);
+      if (_batch_size > 0) {
+        _batch_size = internal::trimmed_length_safe_utf8(
+            (const char *)(buf() + last_json_buffer_loc), _batch_size);
+        if (_batch_size == 0) {
+          return simdjson::UTF8_ERROR;
+        }
+        // let us capture read-only variables
+        const uint8_t *const b = buf() + last_json_buffer_loc;
+        const size_t bs = _batch_size;
+        // we call the thread on a lambda that will update
+        // this->stage1_is_ok_thread
+        // there is only one thread that may write to this value
+        stage_1_thread = std::thread([this, b, bs] {
+          this->stage1_is_ok_thread = error_code(simdjson::active_implementation->stage1(b, bs, this->parser_thread, true));
+        });
+      }
+    }
+    next_json = 0;
+    load_next_batch = false;
+  } // load_next_batch
+  error_code res = simdjson::active_implementation->stage2(buf(), remaining(), parser, next_json);
+  if (res == simdjson::SUCCESS_AND_HAS_MORE) {
+    n_parsed_docs++;
+    current_buffer_loc = parser.structural_indexes[next_json];
+    load_next_batch = (current_buffer_loc == last_json_buffer_loc);
+  } else if (res == simdjson::SUCCESS) {
+    n_parsed_docs++;
+    if (remaining() > _batch_size) {
+      current_buffer_loc = parser.structural_indexes[next_json - 1];
+      load_next_batch = true;
+      res = simdjson::SUCCESS_AND_HAS_MORE;
+    }
+  }
+  return res;
+}
+
+#else  // SIMDJSON_THREADS_ENABLED
+
+// single-threaded version of json_parse
+inline error_code document::stream::json_parse() noexcept {
+  error = parser.ensure_capacity(_batch_size);
+  if (error) { return error; }
+
+  if (unlikely(load_next_batch)) {
+    advance(current_buffer_loc);
+    n_bytes_parsed += current_buffer_loc;
+    _batch_size = (std::min)(_batch_size, remaining());
+    _batch_size = internal::trimmed_length_safe_utf8((const char *)buf(), _batch_size);
+    auto stage1_is_ok = (error_code)simdjson::active_implementation->stage1(buf(), _batch_size, parser, true);
+    if (stage1_is_ok != simdjson::SUCCESS) {
+      return stage1_is_ok;
+    }
+    size_t last_index = internal::find_last_json_buf_idx(buf(), _batch_size, parser);
+    if (last_index == 0) {
+      if (parser.n_structural_indexes == 0) {
+        return EMPTY;
+      }
+    } else {
+      parser.n_structural_indexes = last_index + 1;
+    }
+    load_next_batch = false;
+  } // load_next_batch
+  error_code res = simdjson::active_implementation->stage2(buf(), remaining(), parser, next_json);
+  if (likely(res == simdjson::SUCCESS_AND_HAS_MORE)) {
+    n_parsed_docs++;
+    current_buffer_loc = parser.structural_indexes[next_json];
+  } else if (res == simdjson::SUCCESS) {
+    n_parsed_docs++;
+    if (remaining() > _batch_size) {
+      current_buffer_loc = parser.structural_indexes[next_json - 1];
+      next_json = 1;
+      load_next_batch = true;
+      res = simdjson::SUCCESS_AND_HAS_MORE;
+    }
+  }
+  return res;
+}
+#endif // SIMDJSON_THREADS_ENABLED
+
+} // end of namespace simdjson
+#endif // SIMDJSON_INLINE_DOCUMENT_STREAM_H
+/* end file include/simdjson/inline/document_stream.h */
+/* begin file include/simdjson/inline/error.h */
+#ifndef SIMDJSON_INLINE_ERROR_H
+#define SIMDJSON_INLINE_ERROR_H
+
+#include <string>
+
+namespace simdjson::internal {
+  // We store the error code so we can validate the error message is associated with the right code
+  struct error_code_info {
+    error_code code;
+    std::string message;
+  };
+  // These MUST match the codes in error_code. We check this constraint in basictests.
+  inline const error_code_info error_codes[] {
+    { SUCCESS, "No error" },
+    { SUCCESS_AND_HAS_MORE, "No error and buffer still has more data" },
+    { CAPACITY, "This parser can't support a document that big" },
+    { MEMALLOC, "Error allocating memory, we're most likely out of memory" },
+    { TAPE_ERROR, "Something went wrong while writing to the tape" },
+    { DEPTH_ERROR, "The JSON document was too deep (too many nested objects and arrays)" },
+    { STRING_ERROR, "Problem while parsing a string" },
+    { T_ATOM_ERROR, "Problem while parsing an atom starting with the letter 't'" },
+    { F_ATOM_ERROR, "Problem while parsing an atom starting with the letter 'f'" },
+    { N_ATOM_ERROR, "Problem while parsing an atom starting with the letter 'n'" },
+    { NUMBER_ERROR, "Problem while parsing a number" },
+    { UTF8_ERROR, "The input is not valid UTF-8" },
+    { UNINITIALIZED, "Uninitialized" },
+    { EMPTY, "Empty: no JSON found" },
+    { UNESCAPED_CHARS, "Within strings, some characters must be escaped, we found unescaped characters" },
+    { UNCLOSED_STRING, "A string is opened, but never closed." },
+    { UNSUPPORTED_ARCHITECTURE, "simdjson does not have an implementation supported by this CPU architecture (perhaps it's a non-SIMD CPU?)." },
+    { INCORRECT_TYPE, "The JSON element does not have the requested type." },
+    { NUMBER_OUT_OF_RANGE, "The JSON number is too large or too small to fit within the requested type." },
+    { NO_SUCH_FIELD, "The JSON field referenced does not exist in this object." },
+    { IO_ERROR, "Error reading the file." },
+    { UNEXPECTED_ERROR, "Unexpected error, consider reporting this problem as you may have found a bug in simdjson" }
+  }; // error_messages[]
+} // namespace simdjson::internal
+
+namespace simdjson {
+
+inline const char *error_message(error_code error) noexcept {
+  // If you're using error_code, we're trusting you got it from the enum.
+  return internal::error_codes[int(error)].message.c_str();
+}
+
+inline const std::string &error_message(int error) noexcept {
+  if (error < 0 || error >= error_code::NUM_ERROR_CODES) {
+    return internal::error_codes[UNEXPECTED_ERROR].message;
+  }
+  return internal::error_codes[error].message;
+}
+
+inline std::ostream& operator<<(std::ostream& out, error_code error) noexcept {
+  return out << error_message(error);
+}
+
+} // namespace simdjson
+
+#endif // SIMDJSON_INLINE_ERROR_H
+/* end file include/simdjson/inline/error.h */
+/* begin file include/simdjson/inline/jsonstream.h */
+// TODO Remove this -- deprecated API and files
+
+#ifndef SIMDJSON_INLINE_JSONSTREAM_H
+#define SIMDJSON_INLINE_JSONSTREAM_H
+
+
+namespace simdjson {
+
+template <class string_container>
+inline JsonStream<string_container>::JsonStream(const string_container &s, size_t _batch_size) noexcept
+    : str(s), batch_size(_batch_size) {
+}
+
+template <class string_container>
+inline JsonStream<string_container>::~JsonStream() noexcept {
+  if (stream) { delete stream; }
+}
+
+template <class string_container>
+inline int JsonStream<string_container>::json_parse(document::parser &parser) noexcept {
+  if (unlikely(stream == nullptr)) {
+    stream = new document::stream(parser, reinterpret_cast<const uint8_t*>(str.data()), str.length(), batch_size);
+  } else {
+    if (&parser != &stream->parser) { return stream->error = TAPE_ERROR; }
+    stream->error = stream->json_parse();
+  }
+  return stream->error;
+}
+
+} // namespace simdjson
+
+#endif // SIMDJSON_INLINE_JSONSTREAM_H
+/* end file include/simdjson/inline/jsonstream.h */
+/* begin file include/simdjson/inline/padded_string.h */
+#ifndef SIMDJSON_INLINE_PADDED_STRING_H
+#define SIMDJSON_INLINE_PADDED_STRING_H
+
+
+#include <climits>
+#include <cstring>
+#include <memory>
+#include <string>
+
+namespace simdjson::internal {
+
+// low-level function to allocate memory with padding so we can read past the
+// "length" bytes safely. if you must provide a pointer to some data, create it
+// with this function: length is the max. size in bytes of the string caller is
+// responsible to free the memory (free(...))
+inline char *allocate_padded_buffer(size_t length) noexcept {
+  // we could do a simple malloc
+  // return (char *) malloc(length + SIMDJSON_PADDING);
+  // However, we might as well align to cache lines...
+  size_t totalpaddedlength = length + SIMDJSON_PADDING;
+  char *padded_buffer = aligned_malloc_char(64, totalpaddedlength);
+#ifndef NDEBUG
+  if (padded_buffer == nullptr) {
+    return nullptr;
+  }
+#endif // NDEBUG
+  memset(padded_buffer + length, 0, totalpaddedlength - length);
+  return padded_buffer;
+} // allocate_padded_buffer()
+
+} // namespace simdjson::internal
+
+namespace simdjson {
+
+inline padded_string::padded_string() noexcept : viable_size(0), data_ptr(nullptr) {}
+inline padded_string::padded_string(size_t length) noexcept
+    : viable_size(length), data_ptr(internal::allocate_padded_buffer(length)) {
+  if (data_ptr != nullptr)
+    data_ptr[length] = '\0'; // easier when you need a c_str
+}
+inline padded_string::padded_string(const char *data, size_t length) noexcept
+    : viable_size(length), data_ptr(internal::allocate_padded_buffer(length)) {
+  if ((data != nullptr) and (data_ptr != nullptr)) {
+    memcpy(data_ptr, data, length);
+    data_ptr[length] = '\0'; // easier when you need a c_str
+  }
+}
+// note: do not pass std::string arguments by value
+inline padded_string::padded_string(const std::string & str_ ) noexcept
+    : viable_size(str_.size()), data_ptr(internal::allocate_padded_buffer(str_.size())) {
+  if (data_ptr != nullptr) {
+    memcpy(data_ptr, str_.data(), str_.size());
+    data_ptr[str_.size()] = '\0'; // easier when you need a c_str
+  }
+}
+// note: do pass std::string_view arguments by value
+inline padded_string::padded_string(std::string_view sv_) noexcept
+    : viable_size(sv_.size()), data_ptr(internal::allocate_padded_buffer(sv_.size())) {
+  if (data_ptr != nullptr) {
+    memcpy(data_ptr, sv_.data(), sv_.size());
+    data_ptr[sv_.size()] = '\0'; // easier when you need a c_str
+  }
+}
+inline padded_string::padded_string(padded_string &&o) noexcept
+    : viable_size(o.viable_size), data_ptr(o.data_ptr) {
+  o.data_ptr = nullptr; // we take ownership
+}
+
+inline padded_string &padded_string::operator=(padded_string &&o) noexcept {
+  aligned_free_char(data_ptr);
+  data_ptr = o.data_ptr;
+  viable_size = o.viable_size;
+  o.data_ptr = nullptr; // we take ownership
+  o.viable_size = 0;
+  return *this;
+}
+
+inline void padded_string::swap(padded_string &o) noexcept {
+  size_t tmp_viable_size = viable_size;
+  char *tmp_data_ptr = data_ptr;
+  viable_size = o.viable_size;
+  data_ptr = o.data_ptr;
+  o.data_ptr = tmp_data_ptr;
+  o.viable_size = tmp_viable_size;
+}
+
+inline padded_string::~padded_string() noexcept {
+  aligned_free_char(data_ptr);
+}
+
+inline size_t padded_string::size() const noexcept { return viable_size; }
+
+inline size_t padded_string::length() const noexcept { return viable_size; }
+
+inline const char *padded_string::data() const noexcept { return data_ptr; }
+
+inline char *padded_string::data() noexcept { return data_ptr; }
+
+inline simdjson_move_result<padded_string> padded_string::load(const std::string &filename) noexcept {
+  // Open the file
+  std::FILE *fp = std::fopen(filename.c_str(), "rb");
+  if (fp == nullptr) {
+    return IO_ERROR;
+  }
+
+  // Get the file size
+  if(std::fseek(fp, 0, SEEK_END) < 0) {
+    std::fclose(fp);
+    return IO_ERROR;
+  }
+  long llen = std::ftell(fp);
+  if((llen < 0) || (llen == LONG_MAX)) {
+    std::fclose(fp);
+    return IO_ERROR;
+  }
+
+  // Allocate the padded_string
+  size_t len = (size_t) llen;
+  padded_string s(len);
+  if (s.data() == nullptr) {
+    std::fclose(fp);
+    return MEMALLOC;
+  }
+
+  // Read the padded_string
+  std::rewind(fp);
+  size_t bytes_read = std::fread(s.data(), 1, len, fp);
+  if (std::fclose(fp) != 0 || bytes_read != len) {
+    return IO_ERROR;
+  }
+
+  return std::move(s);
+}
+
+} // namespace simdjson
+
+#endif // SIMDJSON_INLINE_PADDED_STRING_H
+/* end file include/simdjson/inline/padded_string.h */
 
 #endif // SIMDJSON_H
-/* end file include/simdjson/inline/document_iterator.h */
+/* end file include/simdjson/inline/padded_string.h */
